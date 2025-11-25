@@ -1,0 +1,186 @@
+import { Refine } from "@refinedev/core";
+import { RefineThemes, ThemedLayoutV2, notificationProvider } from "@refinedev/antd";
+import dataProvider from "@refinedev/simple-rest";
+import routerProvider from "@refinedev/react-router-v6";
+import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
+import { ConfigProvider, App as AntdApp } from "antd";
+import koKR from "antd/locale/ko_KR";
+import {
+  DashboardOutlined,
+  UserOutlined,
+  BookOutlined,
+  TrophyOutlined,
+  DollarOutlined,
+
+} from "@ant-design/icons";
+
+import "@refinedev/antd/dist/reset.css";
+
+// Dashboard
+import { DashboardPage } from "./pages/dashboard";
+
+// Users
+import { UserList } from "./pages/users/list";
+import { UserShow } from "./pages/users/show";
+
+// Classes
+import { ClassList } from "./pages/classes/list";
+import { ClassShow } from "./pages/classes/show";
+
+// Challenges
+import { ChallengeList } from "./pages/challenges/list";
+import { ChallengeCreate } from "./pages/challenges/create";
+import { ChallengeEdit } from "./pages/challenges/edit";
+import { ChallengeShow } from "./pages/challenges/show";
+
+
+
+// Revenue
+import { RevenueDashboard } from "./pages/revenue/dashboard";
+import { SalesLog } from "./pages/revenue/sales-log";
+import { ManualSaleAdd } from "./pages/revenue/manual-add";
+import { PGManagement } from "./pages/revenue/pg-management";
+
+function App() {
+  return (
+    <BrowserRouter>
+      <ConfigProvider theme={RefineThemes.Blue} locale={koKR}>
+        <AntdApp>
+          <Refine
+            dataProvider={dataProvider("http://localhost:3001")}
+            notificationProvider={notificationProvider}
+            routerProvider={routerProvider}
+            resources={[
+              {
+                name: "dashboard",
+                list: "/",
+                meta: {
+                  label: "대시보드",
+                  icon: <DashboardOutlined />,
+                },
+              },
+              {
+                name: "users",
+                list: "/users",
+                show: "/users/show/:id",
+                meta: {
+                  label: "사용자 관리",
+                  icon: <UserOutlined />,
+                },
+              },
+              {
+                name: "classes",
+                list: "/classes",
+                show: "/classes/show/:id",
+                meta: {
+                  label: "클래스 관리",
+                  icon: <BookOutlined />,
+                },
+              },
+              {
+                name: "challenges",
+                list: "/challenges",
+                create: "/challenges/create",
+                edit: "/challenges/edit/:id",
+                show: "/challenges/show/:id",
+                meta: {
+                  label: "챌린지 관리",
+                  icon: <TrophyOutlined />,
+                },
+              },
+
+              {
+                name: "revenue",
+                meta: {
+                  label: "매출 관리",
+                  icon: <DollarOutlined />,
+                },
+              },
+              {
+                name: "revenue-dashboard",
+                list: "/revenue/dashboard",
+                meta: {
+                  label: "매출 대시보드",
+                  parent: "revenue",
+                },
+              },
+              {
+                name: "sales-log",
+                list: "/revenue/sales-log",
+                meta: {
+                  label: "판매 로그",
+                  parent: "revenue",
+                },
+              },
+              {
+                name: "manual-add",
+                list: "/revenue/manual-add",
+                meta: {
+                  label: "수동 매출 추가",
+                  parent: "revenue",
+                },
+              },
+              {
+                name: "pg-management",
+                list: "/revenue/pg-management",
+                meta: {
+                  label: "PG 연동 관리",
+                  parent: "revenue",
+                },
+              },
+            ]}
+            options={{
+              syncWithLocation: true,
+              warnWhenUnsavedChanges: true,
+            }}
+          >
+            <Routes>
+              <Route
+                element={
+                  <ThemedLayoutV2>
+                    <Outlet />
+                  </ThemedLayoutV2>
+                }
+              >
+                {/* Dashboard */}
+                <Route index element={<DashboardPage />} />
+
+                {/* Users */}
+                <Route path="/users">
+                  <Route index element={<UserList />} />
+                  <Route path="show/:id" element={<UserShow />} />
+                </Route>
+
+                {/* Classes */}
+                <Route path="/classes">
+                  <Route index element={<ClassList />} />
+                  <Route path="show/:id" element={<ClassShow />} />
+                </Route>
+
+                {/* Challenges */}
+                <Route path="/challenges">
+                  <Route index element={<ChallengeList />} />
+                  <Route path="create" element={<ChallengeCreate />} />
+                  <Route path="edit/:id" element={<ChallengeEdit />} />
+                  <Route path="show/:id" element={<ChallengeShow />} />
+                </Route>
+
+
+
+                {/* Revenue */}
+                <Route path="/revenue">
+                  <Route path="dashboard" element={<RevenueDashboard />} />
+                  <Route path="sales-log" element={<SalesLog />} />
+                  <Route path="manual-add" element={<ManualSaleAdd />} />
+                  <Route path="pg-management" element={<PGManagement />} />
+                </Route>
+              </Route>
+            </Routes>
+          </Refine>
+        </AntdApp>
+      </ConfigProvider>
+    </BrowserRouter>
+  );
+}
+
+export default App;

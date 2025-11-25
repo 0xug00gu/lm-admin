@@ -1,0 +1,463 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "홍길동",
+      "email": "hong@example.com",
+      "phone": "010-1234-5678",
+      "createdAt": "2024-01-15",
+      "purchaseCount": 3,
+      "discordId": "1기_홍길동"
+    },
+    {
+      "id": 2,
+      "name": "김철수",
+      "email": "kim@example.com",
+      "phone": "010-2345-6789",
+      "createdAt": "2024-02-10",
+      "purchaseCount": 1,
+      "discordId": "1기_김철수"
+    },
+    {
+      "id": 3,
+      "name": "이영희",
+      "email": "lee@example.com",
+      "phone": "010-3456-7890",
+      "createdAt": "2024-03-05",
+      "purchaseCount": 2,
+      "discordId": "2기_이영희"
+    },
+    {
+      "id": 4,
+      "name": "박지민",
+      "email": "park@example.com",
+      "phone": "010-4567-8901",
+      "createdAt": "2024-04-20",
+      "purchaseCount": 1,
+      "discordId": "2기_박지민"
+    },
+    {
+      "id": 5,
+      "name": "최수연",
+      "email": "choi@example.com",
+      "phone": "010-5678-9012",
+      "createdAt": "2024-05-12",
+      "purchaseCount": 4,
+      "discordId": "3기_최수연"
+    }
+  ],
+  "classes": [
+    {
+      "id": 1,
+      "name": "라이프 마스터리 1기",
+      "period": "2024-01-01 ~ 2024-04-30",
+      "studentCount": 25,
+      "challengeCount": 3,
+      "price": "300,000원",
+      "status": "completed"
+    },
+    {
+      "id": 2,
+      "name": "라이프 마스터리 2기",
+      "period": "2024-03-01 ~ 2024-06-30",
+      "studentCount": 30,
+      "challengeCount": 2,
+      "price": "300,000원",
+      "status": "ongoing"
+    },
+    {
+      "id": 3,
+      "name": "라이프 마스터리 3기",
+      "period": "2024-05-01 ~ 2024-08-31",
+      "studentCount": 28,
+      "challengeCount": 2,
+      "price": "300,000원",
+      "status": "ongoing"
+    },
+    {
+      "id": 4,
+      "name": "명상 입문 클래스",
+      "period": "2024-02-15 ~ 2024-05-15",
+      "studentCount": 15,
+      "challengeCount": 1,
+      "price": "150,000원",
+      "status": "ongoing"
+    }
+  ],
+  "challenges": [
+    {
+      "id": 1,
+      "name": "데일리 챌린지 - 1기",
+      "type": "lifemastery",
+      "generation": 1,
+      "period": "2024-01-01 ~ 2024-01-31",
+      "price": "프로그램 포함",
+      "participants": 38,
+      "status": "ongoing",
+      "duration": "4주",
+      "challengeCount": 28,
+      "description": "아침/데일리 인증을 통해 루틴을 만드는 챌린지입니다.",
+      "authRuleEnabled": true,
+      "weekdays": ["mon", "tue", "wed", "thu", "fri", "sat", "sun"],
+      "minWeeklyCount": 4,
+      "revivalMinCount": 3,
+      "restPeriod": 2,
+      "discordCategoryId": "1234567890",
+      "teams": [
+        {"id": 1, "name": "1팀", "discordChannelId": "1234567890", "memberCount": 8, "status": "active"},
+        {"id": 2, "name": "2팀", "discordChannelId": "1234567891", "memberCount": 7, "status": "active"},
+        {"id": 3, "name": "3팀", "discordChannelId": "1234567892", "memberCount": 9, "status": "active"},
+        {"id": 4, "name": "4팀", "discordChannelId": "1234567893", "memberCount": 6, "status": "active"},
+        {"id": 5, "name": "5팀", "discordChannelId": "1234567894", "memberCount": 8, "status": "active"}
+      ]
+    },
+    {
+      "id": 2,
+      "name": "아침 명상",
+      "type": "meditation",
+      "period": "2024-02-01 ~ 2024-02-28",
+      "price": "15,000원",
+      "participants": 2,
+      "status": "ongoing",
+      "description": "#시작으로 명상을 시작하고, #종료로 명상을 종료하는 챌린지입니다.",
+      "discordCategoryId": "2234567890",
+      "discordChannelId": "1987654321",
+      "startTime": "06:00",
+      "endTime": "08:00",
+      "enabled": true,
+      "dailyStatusTime": "21:00"
+    },
+    {
+      "id": 3,
+      "name": "위클리 플래닝 챌린지",
+      "type": "weekly-planning",
+      "period": "2024-01-01 ~ 2024-12-31",
+      "price": "0원",
+      "participants": 3,
+      "status": "ongoing",
+      "duration": "52주",
+      "challengeCount": 52,
+      "description": "매주 주간 계획을 선언하는 챌린지입니다.",
+      "declarationDeadline": "sun",
+      "declarationDeadlineTime": 23,
+      "declarationRequired": true,
+      "discordCategoryId": "3234567890",
+      "discordChannelId": "2987654321"
+    }
+  ],
+  "sales": [
+    {
+      "id": 1,
+      "date": "2024-01-15",
+      "productName": "라이프 마스터리 1기",
+      "buyer": "홍길동",
+      "amount": "300,000원",
+      "paymentMethod": "카드",
+      "status": "completed"
+    },
+    {
+      "id": 2,
+      "date": "2024-01-20",
+      "productName": "데일리 챌린지",
+      "buyer": "김철수",
+      "amount": "19,000원",
+      "paymentMethod": "계좌이체",
+      "status": "completed"
+    },
+    {
+      "id": 3,
+      "date": "2024-02-10",
+      "productName": "라이프 마스터리 2기",
+      "buyer": "이영희",
+      "amount": "300,000원",
+      "paymentMethod": "카드",
+      "status": "completed"
+    },
+    {
+      "id": 4,
+      "date": "2024-02-15",
+      "productName": "명상 입문 클래스",
+      "buyer": "박지민",
+      "amount": "150,000원",
+      "paymentMethod": "현금",
+      "status": "completed"
+    },
+    {
+      "id": 5,
+      "date": "2024-03-05",
+      "productName": "라이프 마스터리 3기",
+      "buyer": "최수연",
+      "amount": "300,000원",
+      "paymentMethod": "카드",
+      "status": "completed"
+    },
+    {
+      "id": 6,
+      "date": "2024-03-10",
+      "productName": "데일리 챌린지",
+      "buyer": "홍길동",
+      "amount": "19,000원",
+      "paymentMethod": "카드",
+      "status": "pending"
+    }
+  ],
+  "attendances": [
+    {
+      "id": 1,
+      "userId": 1,
+      "challengeId": 1,
+      "userName": "홍길동",
+      "teamId": 1,
+      "team": "1팀",
+      "discordId": "1기_홍길동",
+      "status": "active",
+      "morningCount": 5,
+      "dailyCount": 6,
+      "weeklyRate": 78,
+      "totalRate": 82,
+      "streak": 7,
+      "badges": ["3day", "5day", "7day"],
+      "weeklyData": [
+        {"week": 1, "mon": "✅", "tue": "✅", "wed": "✅", "thu": "⏳", "fri": "✅", "sat": "✅", "sun": "✅"},
+        {"week": 2, "mon": "✅", "tue": "✅", "wed": "✅", "thu": "✅", "fri": "✅", "sat": "⏳", "sun": "✅"},
+        {"week": 3, "mon": "✅", "tue": "✅", "wed": "⏳", "thu": "✅", "fri": "✅", "sat": "✅", "sun": "✅"},
+        {"week": 4, "mon": "✅", "tue": "✅", "wed": "✅", "thu": "✅", "fri": "⬜", "sat": "⬜", "sun": "⬜"}
+      ]
+    },
+    {
+      "id": 2,
+      "userId": 2,
+      "challengeId": 1,
+      "userName": "김철수",
+      "teamId": 2,
+      "team": "2팀",
+      "discordId": "1기_김철수",
+      "status": "active",
+      "morningCount": 6,
+      "dailyCount": 7,
+      "weeklyRate": 92,
+      "totalRate": 88,
+      "streak": 10,
+      "badges": ["3day", "5day", "7day", "10day"],
+      "weeklyData": [
+        {"week": 1, "mon": "✅", "tue": "✅", "wed": "✅", "thu": "✅", "fri": "✅", "sat": "✅", "sun": "✅"},
+        {"week": 2, "mon": "✅", "tue": "✅", "wed": "✅", "thu": "✅", "fri": "✅", "sat": "✅", "sun": "⏳"},
+        {"week": 3, "mon": "✅", "tue": "✅", "wed": "✅", "thu": "✅", "fri": "✅", "sat": "✅", "sun": "✅"},
+        {"week": 4, "mon": "✅", "tue": "✅", "wed": "✅", "thu": "⬜", "fri": "⬜", "sat": "⬜", "sun": "⬜"}
+      ]
+    },
+    {
+      "id": 3,
+      "userId": 3,
+      "challengeId": 1,
+      "userName": "이영희",
+      "teamId": 3,
+      "team": "3팀",
+      "discordId": "2기_이영희",
+      "status": "active",
+      "morningCount": 4,
+      "dailyCount": 5,
+      "weeklyRate": 64,
+      "totalRate": 70,
+      "streak": 3,
+      "badges": ["3day"],
+      "weeklyData": [
+        {"week": 1, "mon": "✅", "tue": "✅", "wed": "⏳", "thu": "✅", "fri": "⏳", "sat": "✅", "sun": "✅"},
+        {"week": 2, "mon": "✅", "tue": "⏳", "wed": "✅", "thu": "✅", "fri": "✅", "sat": "⏳", "sun": "✅"},
+        {"week": 3, "mon": "✅", "tue": "✅", "wed": "✅", "thu": "⏳", "fri": "✅", "sat": "⏳", "sun": "✅"},
+        {"week": 4, "mon": "✅", "tue": "✅", "wed": "✅", "thu": "⬜", "fri": "⬜", "sat": "⬜", "sun": "⬜"}
+      ]
+    },
+    {
+      "id": 4,
+      "userId": 4,
+      "challengeId": 1,
+      "userName": "박지민",
+      "teamId": 4,
+      "team": "4팀",
+      "discordId": "2기_박지민",
+      "status": "reset",
+      "morningCount": 2,
+      "dailyCount": 3,
+      "weeklyRate": 35,
+      "totalRate": 45,
+      "streak": 0,
+      "badges": [],
+      "weeklyData": [
+        {"week": 1, "mon": "✅", "tue": "⏳", "wed": "❌", "thu": "✅", "fri": "❌", "sat": "⏳", "sun": "✅"},
+        {"week": 2, "mon": "❌", "tue": "✅", "wed": "⏳", "thu": "❌", "fri": "✅", "sat": "❌", "sun": "⏳"},
+        {"week": 3, "mon": "✅", "tue": "⏳", "wed": "❌", "thu": "✅", "fri": "❌", "sat": "⏳", "sun": "✅"},
+        {"week": 4, "mon": "⏳", "tue": "✅", "wed": "❌", "thu": "⬜", "fri": "⬜", "sat": "⬜", "sun": "⬜"}
+      ]
+    },
+    {
+      "id": 5,
+      "userId": 5,
+      "challengeId": 1,
+      "userName": "최수연",
+      "teamId": 5,
+      "team": "5팀",
+      "discordId": "3기_최수연",
+      "status": "active",
+      "morningCount": 7,
+      "dailyCount": 7,
+      "weeklyRate": 100,
+      "totalRate": 95,
+      "streak": 14,
+      "badges": ["3day", "5day", "7day", "10day", "14day"],
+      "weeklyData": [
+        {"week": 1, "mon": "✅", "tue": "✅", "wed": "✅", "thu": "✅", "fri": "✅", "sat": "✅", "sun": "✅"},
+        {"week": 2, "mon": "✅", "tue": "✅", "wed": "✅", "thu": "✅", "fri": "✅", "sat": "✅", "sun": "✅"},
+        {"week": 3, "mon": "✅", "tue": "✅", "wed": "✅", "thu": "✅", "fri": "✅", "sat": "✅", "sun": "✅"},
+        {"week": 4, "mon": "✅", "tue": "✅", "wed": "✅", "thu": "⬜", "fri": "⬜", "sat": "⬜", "sun": "⬜"}
+      ]
+    },
+    {
+      "id": 6,
+      "userId": 1,
+      "challengeId": 2,
+      "userName": "홍길동",
+      "discordId": "1기_홍길동",
+      "status": "active",
+      "totalSessions": 1,
+      "weeklySessionCount": 1,
+      "totalMeditationTime": 15,
+      "averageMeditationTime": 15,
+      "streak": 1,
+      "badges": [],
+      "weeklyData": [
+        {"week": 1, "mon": 1, "tue": 0, "wed": 0, "thu": 0, "fri": 0, "sat": 0, "sun": 0}
+      ]
+    },
+    {
+      "id": 7,
+      "userId": 2,
+      "challengeId": 2,
+      "userName": "김철수",
+      "discordId": "1기_김철수",
+      "status": "active",
+      "totalSessions": 1,
+      "weeklySessionCount": 1,
+      "totalMeditationTime": 20,
+      "averageMeditationTime": 20,
+      "streak": 1,
+      "badges": [],
+      "weeklyData": [
+        {"week": 1, "mon": 1, "tue": 0, "wed": 0, "thu": 0, "fri": 0, "sat": 0, "sun": 0}
+      ]
+    }
+  ],
+  "meditationSessions": [
+    {
+      "id": 1,
+      "userId": 1,
+      "challengeId": 2,
+      "userName": "홍길동",
+      "discordId": "1기_홍길동",
+      "date": "2024-02-05",
+      "startTime": "07:00:00",
+      "endTime": "07:15:00",
+      "duration": 15
+    },
+    {
+      "id": 2,
+      "userId": 2,
+      "challengeId": 2,
+      "userName": "김철수",
+      "discordId": "1기_김철수",
+      "date": "2024-02-05",
+      "startTime": "06:00:00",
+      "endTime": "06:20:00",
+      "duration": 20
+    }
+  ],
+  "weeklyPlanning": [
+    {
+      "id": 1,
+      "userId": 1,
+      "challengeId": 3,
+      "name": "홍길동",
+      "discordId": "1기_홍길동",
+      "declarations": [
+        {
+          "week": "11월 1주차",
+          "wakeTime": "7시",
+          "sleepTime": "12시",
+          "coreTask": "토익 공부하기",
+          "weeklyCommitment": "매일 1시간씩 토익 문제 풀기",
+          "monthlyProject": "토익 800점 달성",
+          "submittedAt": "2024-11-03 22:30"
+        },
+        {
+          "week": "11월 2주차",
+          "wakeTime": "7시",
+          "sleepTime": "12시",
+          "coreTask": "토익 모의고사",
+          "weeklyCommitment": "모의고사 2회 풀기",
+          "monthlyProject": "토익 800점 달성",
+          "submittedAt": "2024-11-10 20:15"
+        }
+      ],
+      "monthlyCount": 2,
+      "badges": "🥇🥈"
+    },
+    {
+      "id": 2,
+      "userId": 2,
+      "challengeId": 3,
+      "name": "김철수",
+      "discordId": "1기_김철수",
+      "declarations": [
+        {
+          "week": "11월 1주차",
+          "wakeTime": "6시",
+          "sleepTime": "11시",
+          "coreTask": "프로젝트 기획서 작성",
+          "weeklyCommitment": "기획서 완성하기",
+          "monthlyProject": "사이드 프로젝트 런칭",
+          "submittedAt": "2024-11-03 21:00"
+        },
+        {
+          "week": "11월 2주차",
+          "wakeTime": "6시",
+          "sleepTime": "11시",
+          "coreTask": "프로토타입 개발",
+          "weeklyCommitment": "주요 기능 3개 구현",
+          "monthlyProject": "사이드 프로젝트 런칭",
+          "submittedAt": "2024-11-10 19:45"
+        },
+        {
+          "week": "11월 3주차",
+          "wakeTime": "6시",
+          "sleepTime": "11시 30분",
+          "coreTask": "베타 테스트 준비",
+          "weeklyCommitment": "테스트 시나리오 작성",
+          "monthlyProject": "사이드 프로젝트 런칭",
+          "submittedAt": "2024-11-17 22:00"
+        }
+      ],
+      "monthlyCount": 3,
+      "badges": "🥇🥈🥉"
+    },
+    {
+      "id": 3,
+      "userId": 3,
+      "challengeId": 3,
+      "name": "이영희",
+      "discordId": "2기_이영희",
+      "declarations": [
+        {
+          "week": "11월 1주차",
+          "wakeTime": "평일 6:30, 주말 9시",
+          "sleepTime": "12시 이전",
+          "coreTask": "운동 루틴 만들기",
+          "weeklyCommitment": "주 3회 이상 운동하기",
+          "monthlyProject": "건강한 생활 습관 만들기",
+          "submittedAt": "2024-11-03 23:15"
+        }
+      ],
+      "monthlyCount": 1,
+      "badges": "🥇"
+    }
+  ]
+}
