@@ -1,6 +1,6 @@
 import { Refine } from "@refinedev/core";
 import { RefineThemes, ThemedLayoutV2, notificationProvider } from "@refinedev/antd";
-import dataProvider from "@refinedev/simple-rest";
+import { pocketbaseDataProvider } from "./providers/pocketbaseDataProvider";
 import routerProvider from "@refinedev/react-router-v6";
 import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
 import { ConfigProvider, App as AntdApp } from "antd";
@@ -47,7 +47,11 @@ function App() {
       <ConfigProvider theme={RefineThemes.Blue} locale={koKR}>
         <AntdApp>
           <Refine
-            dataProvider={dataProvider("http://localhost:3001")}
+            dataProvider={pocketbaseDataProvider(
+              import.meta.env.VITE_POCKETBASE_URL || "http://127.0.0.1:8090",
+              import.meta.env.VITE_POCKETBASE_ADMIN_EMAIL,
+              import.meta.env.VITE_POCKETBASE_ADMIN_PASSWORD
+            )}
             notificationProvider={notificationProvider}
             routerProvider={routerProvider}
             resources={[
@@ -60,7 +64,7 @@ function App() {
                 },
               },
               {
-                name: "users",
+                name: "discord_users",
                 list: "/users",
                 show: "/users/show/:id",
                 meta: {

@@ -478,5 +478,214 @@
       "monthlyCount": 1,
       "badges": "🥇"
     }
+  ],
+  "classStudents": [
+    {
+      "id": 1,
+      "classId": 1,
+      "userId": 1,
+      "name": "홍길동",
+      "email": "hong@example.com",
+      "phone": "010-1234-5678",
+      "purchaseDate": "2024-01-15",
+      "progress": 100
+    },
+    {
+      "id": 2,
+      "classId": 2,
+      "userId": 2,
+      "name": "김철수",
+      "email": "kim@example.com",
+      "phone": "010-2345-6789",
+      "purchaseDate": "2024-03-01",
+      "progress": 65
+    },
+    {
+      "id": 3,
+      "classId": 2,
+      "userId": 3,
+      "name": "이영희",
+      "email": "lee@example.com",
+      "phone": "010-3456-7890",
+      "purchaseDate": "2024-03-05",
+      "progress": 80
+    },
+    {
+      "id": 4,
+      "classId": 3,
+      "userId": 5,
+      "name": "최수연",
+      "email": "choi@example.com",
+      "phone": "010-5678-9012",
+      "purchaseDate": "2024-05-12",
+      "progress": 45
+    },
+    {
+      "id": 5,
+      "classId": 4,
+      "userId": 4,
+      "name": "박지민",
+      "email": "park@example.com",
+      "phone": "010-4567-8901",
+      "purchaseDate": "2024-02-15",
+      "progress": 70
+    }
+  ],
+  "classAttendances": [
+    {
+      "id": 1,
+      "classId": 1,
+      "userId": 1,
+      "name": "홍길동",
+      "attendance": [true, true, true, true]
+    },
+    {
+      "id": 2,
+      "classId": 2,
+      "userId": 2,
+      "name": "김철수",
+      "attendance": [true, true, false, true]
+    },
+    {
+      "id": 3,
+      "classId": 2,
+      "userId": 3,
+      "name": "이영희",
+      "attendance": [true, true, true, false]
+    },
+    {
+      "id": 4,
+      "classId": 3,
+      "userId": 5,
+      "name": "최수연",
+      "attendance": [true, false, true, true]
+    },
+    {
+      "id": 5,
+      "classId": 4,
+      "userId": 4,
+      "name": "박지민",
+      "attendance": [true, true, true, true]
+    }
+  ],
+  "classVODs": [
+    {
+      "id": 1,
+      "classId": 1,
+      "index": 1,
+      "title": "오리엔테이션",
+      "url": "https://example.com/vod/1"
+    },
+    {
+      "id": 2,
+      "classId": 1,
+      "index": 2,
+      "title": "목표 설정하기",
+      "url": "https://example.com/vod/2"
+    },
+    {
+      "id": 3,
+      "classId": 1,
+      "index": 3,
+      "title": "습관 만들기",
+      "url": "https://example.com/vod/3"
+    },
+    {
+      "id": 4,
+      "classId": 2,
+      "index": 1,
+      "title": "2기 오리엔테이션",
+      "url": "https://example.com/vod/4"
+    },
+    {
+      "id": 5,
+      "classId": 2,
+      "index": 2,
+      "title": "시간 관리 마스터하기",
+      "url": "https://example.com/vod/5"
+    }
+  ],
+  "classAssignments": [
+    {
+      "id": 1,
+      "classId": 1,
+      "name": "1주차 과제",
+      "index": 1
+    },
+    {
+      "id": 2,
+      "classId": 1,
+      "name": "2주차 과제",
+      "index": 2
+    },
+    {
+      "id": 3,
+      "classId": 1,
+      "name": "3주차 과제",
+      "index": 3
+    },
+    {
+      "id": 4,
+      "classId": 2,
+      "name": "1주차 과제",
+      "index": 1
+    },
+    {
+      "id": 5,
+      "classId": 2,
+      "name": "2주차 과제",
+      "index": 2
+    }
+  ],
+  "classAssignmentSubmissions": [
+    {
+      "id": 1,
+      "classId": 1,
+      "userId": 1,
+      "assignmentId": 1,
+      "submitted": true
+    },
+    {
+      "id": 2,
+      "classId": 1,
+      "userId": 1,
+      "assignmentId": 2,
+      "submitted": true
+    },
+    {
+      "id": 3,
+      "classId": 1,
+      "userId": 1,
+      "assignmentId": 3,
+      "submitted": false
+    },
+    {
+      "id": 4,
+      "classId": 2,
+      "userId": 2,
+      "assignmentId": 4,
+      "submitted": true
+    },
+    {
+      "id": 5,
+      "classId": 2,
+      "userId": 2,
+      "assignmentId": 5,
+      "submitted": false
+    },
+    {
+      "id": 6,
+      "classId": 2,
+      "userId": 3,
+      "assignmentId": 4,
+      "submitted": true
+    },
+    {
+      "id": 7,
+      "classId": 2,
+      "userId": 3,
+      "assignmentId": 5,
+      "submitted": true
+    }
   ]
 }
