@@ -7,7 +7,11 @@
       "phone": "010-1234-5678",
       "createdAt": "2024-01-15",
       "purchaseCount": 3,
-      "discordId": "1기_홍길동"
+      "discordId": "1기_홍길동",
+      "currentProducts": [
+        {"id": 1, "name": "라이프 마스터리 1기", "status": "completed"},
+        {"id": 2, "name": "데일리 챌린지 - 1기", "status": "ongoing"}
+      ]
     },
     {
       "id": 2,
@@ -16,7 +20,10 @@
       "phone": "010-2345-6789",
       "createdAt": "2024-02-10",
       "purchaseCount": 1,
-      "discordId": "1기_김철수"
+      "discordId": "1기_김철수",
+      "currentProducts": [
+        {"id": 3, "name": "라이프 마스터리 2기", "status": "ongoing"}
+      ]
     },
     {
       "id": 3,
@@ -25,7 +32,11 @@
       "phone": "010-3456-7890",
       "createdAt": "2024-03-05",
       "purchaseCount": 2,
-      "discordId": "2기_이영희"
+      "discordId": "2기_이영희",
+      "currentProducts": [
+        {"id": 4, "name": "라이프 마스터리 2기", "status": "ongoing"},
+        {"id": 5, "name": "아침 명상", "status": "ongoing"}
+      ]
     },
     {
       "id": 4,
@@ -34,7 +45,10 @@
       "phone": "010-4567-8901",
       "createdAt": "2024-04-20",
       "purchaseCount": 1,
-      "discordId": "2기_박지민"
+      "discordId": "2기_박지민",
+      "currentProducts": [
+        {"id": 6, "name": "명상 입문 클래스", "status": "ongoing"}
+      ]
     },
     {
       "id": 5,
@@ -43,7 +57,12 @@
       "phone": "010-5678-9012",
       "createdAt": "2024-05-12",
       "purchaseCount": 4,
-      "discordId": "3기_최수연"
+      "discordId": "3기_최수연",
+      "currentProducts": [
+        {"id": 7, "name": "라이프 마스터리 3기", "status": "ongoing"},
+        {"id": 8, "name": "데일리 챌린지 - 1기", "status": "ongoing"},
+        {"id": 9, "name": "위클리 플래닝 챌린지", "status": "ongoing"}
+      ]
     }
   ],
   "classes": [
