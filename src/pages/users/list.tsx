@@ -1,9 +1,13 @@
 import { List, useTable } from "@refinedev/antd";
-import { Table, Input, Space, Button, Tag } from "antd";
+import { Table, Input, Space, Button, Select } from "antd";
 import { SearchOutlined, DownloadOutlined } from "@ant-design/icons";
+import { useState } from "react";
 import * as XLSX from "xlsx";
 
 export const UserList = () => {
+  const [searchField, setSearchField] = useState("name");
+  const [searchValue, setSearchValue] = useState("");
+
   const { tableProps } = useTable({
     resource: "discord_users",
     syncWithLocation: true,
@@ -18,8 +22,9 @@ export const UserList = () => {
       "이름": user.name,
       "디스코드 아이디": user.username,
       "전화번호": user.phone_number,
-      "원래 채널 ID": user.original_channel_id,
-      "활성 상태": user.is_active ? "활성" : "비활성"
+      "클래스": user.class_name,
+      "명상": user.meditation_name,
+      "원래 채널 ID": user.original_channel_id
     }));
 
     // 워크시트 생성
@@ -49,9 +54,25 @@ export const UserList = () => {
     >
       {/* 검색/필터 영역 */}
       <Space style={{ marginBottom: 16 }} wrap>
-        <Input placeholder="이름 검색" prefix={<SearchOutlined />} style={{ width: 200 }} />
-        <Input placeholder="디스코드 아이디 검색" prefix={<SearchOutlined />} style={{ width: 200 }} />
-        <Input placeholder="전화번호 검색" prefix={<SearchOutlined />} style={{ width: 200 }} />
+        <Select
+          value={searchField}
+          onChange={setSearchField}
+          style={{ width: 150 }}
+          options={[
+            { value: "name", label: "이름" },
+            { value: "username", label: "디스코드 아이디" },
+            { value: "phone_number", label: "전화번호" },
+            { value: "class_name", label: "클래스" },
+            { value: "meditation_name", label: "명상" }
+          ]}
+        />
+        <Input
+          placeholder="검색어를 입력하세요"
+          prefix={<SearchOutlined />}
+          style={{ width: 300 }}
+          value={searchValue}
+          onChange={(e) => setSearchValue(e.target.value)}
+        />
         <Button type="primary">검색</Button>
       </Space>
 
@@ -69,13 +90,8 @@ export const UserList = () => {
         <Table.Column dataIndex="name" title="이름" width={120} />
         <Table.Column dataIndex="username" title="디스코드 아이디" width={150} />
         <Table.Column dataIndex="phone_number" title="전화번호" width={150} />
-        <Table.Column
-          dataIndex="is_active"
-          title="활성 상태"
-          width={100}
-          align="center"
-          render={(value) => <Tag color={value ? "green" : "red"}>{value ? "활성" : "비활성"}</Tag>}
-        />
+        <Table.Column dataIndex="class_name" title="클래스" width={150} />
+        <Table.Column dataIndex="meditation_name" title="명상" width={150} />
       </Table>
     </List>
   );
