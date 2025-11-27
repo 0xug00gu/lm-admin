@@ -22,7 +22,7 @@ export const UserList = () => {
       "이름": user.name,
       "디스코드 아이디": user.username,
       "전화번호": user.phone_number,
-      "클래스": user.class_name,
+      "라이프마스터리": user.class_name,
       "명상": user.meditation_name,
       "원래 채널 ID": user.original_channel_id
     }));
@@ -62,7 +62,7 @@ export const UserList = () => {
             { value: "name", label: "이름" },
             { value: "username", label: "디스코드 아이디" },
             { value: "phone_number", label: "전화번호" },
-            { value: "class_name", label: "클래스" },
+            { value: "class_name", label: "라이프마스터리" },
             { value: "meditation_name", label: "명상" }
           ]}
         />
@@ -90,7 +90,7 @@ export const UserList = () => {
         <Table.Column dataIndex="name" title="이름" width={120} />
         <Table.Column dataIndex="username" title="디스코드 아이디" width={150} />
         <Table.Column dataIndex="phone_number" title="전화번호" width={150} />
-        <Table.Column dataIndex="class_name" title="클래스" width={150} />
+        <Table.Column dataIndex="class_name" title="라이프마스터리" width={150} />
         <Table.Column dataIndex="meditation_name" title="명상" width={150} />
       </Table>
     </List>

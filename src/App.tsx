@@ -22,6 +22,7 @@ import { DashboardPage } from "./pages/dashboard";
 // Users
 import { UserList } from "./pages/users/list";
 import { UserShow } from "./pages/users/show";
+import { UserCreate } from "./pages/users/create";
 
 // Classes
 import { ClassList } from "./pages/classes/list";
@@ -47,6 +48,7 @@ function App() {
       <ConfigProvider theme={RefineThemes.Blue} locale={koKR}>
         <AntdApp>
           <Refine
+            Title="라이프마스터리스쿨"
             dataProvider={pocketbaseDataProvider(
               import.meta.env.VITE_POCKETBASE_URL || "http://127.0.0.1:8090",
               import.meta.env.VITE_POCKETBASE_ADMIN_EMAIL,
@@ -66,6 +68,7 @@ function App() {
               {
                 name: "discord_users",
                 list: "/users",
+                create: "/users/create",
                 show: "/users/show/:id",
                 meta: {
                   label: "사용자 관리",
@@ -152,6 +155,7 @@ function App() {
                 {/* Users */}
                 <Route path="/users">
                   <Route index element={<UserList />} />
+                  <Route path="create" element={<UserCreate />} />
                   <Route path="show/:id" element={<UserShow />} />
                 </Route>
 

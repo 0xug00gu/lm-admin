@@ -118,10 +118,10 @@ export const UserShow = () => {
           },
           {
             key: "classes",
-            label: "수강 클래스",
+            label: "수강 라이프마스터리",
             children: (
               <Table dataSource={[]} rowKey="id">
-                <Table.Column dataIndex="className" title="클래스명" />
+                <Table.Column dataIndex="className" title="라이프마스터리명" />
                 <Table.Column dataIndex="period" title="기간" />
                 <Table.Column
                   dataIndex="status"

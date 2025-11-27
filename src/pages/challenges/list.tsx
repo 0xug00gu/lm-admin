@@ -36,11 +36,7 @@ export const ChallengeList = () => {
         onRow={(record: any) => {
           return {
             onClick: () => {
-              if (record.type === "meditation") {
-                show("meditation", record.id);
-              } else {
-                show("challenges", record.id);
-              }
+              show("challenges", record.id);
             },
             style: { cursor: "pointer" },
           };
@@ -48,41 +44,23 @@ export const ChallengeList = () => {
       >
         <Table.Column dataIndex="id" title="ID" width={80} />
         <Table.Column dataIndex="name" title="챌린지명" />
+        <Table.Column dataIndex="channel_id" title="채널 ID" width={150} />
+        <Table.Column dataIndex="role_id" title="역할 ID" width={150} />
+        <Table.Column dataIndex="category_id" title="카테고리 ID" width={150} />
         <Table.Column
-          dataIndex="type"
-          title="타입"
-          width={200}
-          render={(type) => {
-            const typeMap: Record<string, { label: string; color: string }> = {
-              lifemastery: { label: "🏆 라이프마스터리", color: "cyan" },
-              "lifemastery-club": { label: "🎯 라이프마스터리 클럽", color: "geekblue" },
-              meditation: { label: "🧘 명상 바디더블링", color: "purple" },
-              "weekly-planning": { label: "📅 위클리 플래닝", color: "blue" },
-            };
-            const typeInfo = typeMap[type] || typeMap["lifemastery"];
-            return <Tag color={typeInfo.color}>{typeInfo.label}</Tag>;
-          }}
-        />
-        <Table.Column dataIndex="period" title="기간" />
-        <Table.Column dataIndex="price" title="가격" width={120} />
-        <Table.Column dataIndex="participants" title="참여자 수" width={100} align="center" />
-        <Table.Column
-          dataIndex="status"
+          dataIndex="is_active"
           title="상태"
           width={100}
-          render={(status) => {
-            const colorMap: Record<string, string> = {
-              ongoing: "blue",
-              upcoming: "orange",
-              completed: "green",
-            };
-            const labelMap: Record<string, string> = {
-              ongoing: "진행중",
-              upcoming: "예정",
-              completed: "완료",
-            };
-            return <Tag color={colorMap[status]}>{labelMap[status]}</Tag>;
-          }}
+          render={(is_active) => (
+            <Tag color={is_active ? "blue" : "red"}>
+              {is_active ? "활성" : "비활성"}
+            </Tag>
+          )}
+        />
+        <Table.Column
+          dataIndex="description"
+          title="설명"
+          ellipsis
         />
       </Table>
     </List>

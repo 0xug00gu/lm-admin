@@ -1,5 +1,6 @@
 import dayjs from "dayjs";
 import { Show } from "@refinedev/antd";
+import { useShow } from "@refinedev/core";
 import {
   Tabs,
   Descriptions,
@@ -34,10 +35,15 @@ import {
 const { TextArea } = Input;
 
 export const ChallengeShow = () => {
-  // TODO: useShow 훅으로 데이터 가져오기
+  const { queryResult } = useShow({
+    resource: "challenges",
+  });
+
+  const { data, isLoading } = queryResult;
+  const record = data?.data;
 
   return (
-    <Show>
+    <Show isLoading={isLoading}>
       <Tabs
         defaultActiveKey="info"
         items={[
@@ -48,24 +54,18 @@ export const ChallengeShow = () => {
             children: (
               <Descriptions bordered column={2}>
                 <Descriptions.Item label="챌린지명" span={2}>
-                  데일리 챌린지
+                  {record?.name || "-"}
                 </Descriptions.Item>
-                <Descriptions.Item label="유형">아침/데일리 인증</Descriptions.Item>
-                <Descriptions.Item label="기간">2024-01-01 ~ 2024-12-31</Descriptions.Item>
-                <Descriptions.Item label="가격">
-                  라이프 마스터리: 300,000원 / 라이프 마스터 클럽: 19,000원
-                </Descriptions.Item>
+                <Descriptions.Item label="채널 ID">{record?.channel_id || "-"}</Descriptions.Item>
+                <Descriptions.Item label="역할 ID">{record?.role_id || "-"}</Descriptions.Item>
+                <Descriptions.Item label="카테고리 ID">{record?.category_id || "-"}</Descriptions.Item>
                 <Descriptions.Item label="상태">
-                  <Tag color="blue">진행중</Tag>
+                  <Tag color={record?.is_active ? "blue" : "red"}>
+                    {record?.is_active ? "활성" : "비활성"}
+                  </Tag>
                 </Descriptions.Item>
                 <Descriptions.Item label="설명" span={2}>
-                  매일 아침과 저녁에 #인증 태그로 출석을 인증하는 챌린지입니다.
-                  <br />
-                  - 아침 인증: 05:00~10:00 (정상), 10:00~11:00 (지각)
-                  <br />
-                  - 데일리 인증: 17:00~23:59 (정상), 익일 00:00~01:00 (지각)
-                  <br />
-                  - 라이프 마스터 클럽: 주 4회 미만 시 리셋방 이동
+                  {record?.description || "-"}
                 </Descriptions.Item>
               </Descriptions>
             ),
