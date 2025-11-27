@@ -1,12 +1,14 @@
 import { Show, useTable } from "@refinedev/antd";
 import { useShow, useCreate, useDelete, useUpdate, useList } from "@refinedev/core";
-import { Tabs, Descriptions, Table, Button, Input, Space, Checkbox, Modal, Form, message } from "antd";
+import { Tabs, Descriptions, Table, Button, Input, Space, Checkbox, Modal, Form, message, Tag } from "antd";
 import { DownloadOutlined, PlusOutlined, DeleteOutlined, CheckOutlined, CloseOutlined } from "@ant-design/icons";
 import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
 
 export const ClassShow = () => {
-  const { queryResult } = useShow();
+  const { queryResult } = useShow({
+    resource: "program",
+  });
   const classData = queryResult?.data?.data;
 
   const [isVODModalOpen, setIsVODModalOpen] = useState(false);
@@ -344,15 +346,31 @@ export const ClassShow = () => {
         items={[
           {
             key: "info",
-            label: "클래스 정보",
+            label: "프로그램 정보",
             children: (
               <Descriptions bordered column={1}>
-                <Descriptions.Item label="클래스명">{classData?.name}</Descriptions.Item>
-                <Descriptions.Item label="기간">{classData?.period}</Descriptions.Item>
-                <Descriptions.Item label="가격">{classData?.price}</Descriptions.Item>
-                <Descriptions.Item label="수강생 수">{classData?.studentCount}명</Descriptions.Item>
-                <Descriptions.Item label="챌린지 수">{classData?.challengeCount}개</Descriptions.Item>
-                <Descriptions.Item label="상태">{classData?.status}</Descriptions.Item>
+                <Descriptions.Item label="ID">{classData?.id}</Descriptions.Item>
+                <Descriptions.Item label="프로그램명">{classData?.name || "-"}</Descriptions.Item>
+                <Descriptions.Item label="시작일">
+                  {classData?.start_date ? new Date(classData.start_date).toLocaleDateString() : "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="종료일">
+                  {classData?.end_date ? new Date(classData.end_date).toLocaleDateString() : "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="가격">
+                  {classData?.price ? `${classData.price.toLocaleString()}원` : "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="상태">
+                  <Tag color={classData?.is_active ? "green" : "red"}>
+                    {classData?.is_active ? "활성" : "비활성"}
+                  </Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label="생성일">
+                  {classData?.created ? new Date(classData.created).toLocaleString() : "-"}
+                </Descriptions.Item>
+                <Descriptions.Item label="수정일">
+                  {classData?.updated ? new Date(classData.updated).toLocaleString() : "-"}
+                </Descriptions.Item>
               </Descriptions>
             ),
           },
@@ -514,24 +532,6 @@ export const ClassShow = () => {
                     </Form.Item>
                   </Form>
                 </Modal>
-              </>
-            ),
-          },
-          {
-            key: "discord",
-            label: "디스코드 채널",
-            children: (
-              <>
-                <Descriptions bordered column={1} style={{ marginBottom: 16 }}>
-                  <Descriptions.Item label="채널 ID">-</Descriptions.Item>
-                  <Descriptions.Item label="채널명">-</Descriptions.Item>
-                  <Descriptions.Item label="인증 완료">0명</Descriptions.Item>
-                  <Descriptions.Item label="인증 미완료">0명</Descriptions.Item>
-                </Descriptions>
-                <Space direction="vertical" style={{ width: "100%" }}>
-                  <Input.TextArea placeholder="초대 링크" rows={2} />
-                  <Button type="primary">링크 저장</Button>
-                </Space>
               </>
             ),
           },

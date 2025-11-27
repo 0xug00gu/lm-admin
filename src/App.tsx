@@ -34,6 +34,9 @@ import { ChallengeCreate } from "./pages/challenges/create";
 import { ChallengeEdit } from "./pages/challenges/edit";
 import { ChallengeShow } from "./pages/challenges/show";
 
+// Channels
+import { ChannelShow } from "./pages/channels/show";
+
 
 
 // Revenue
@@ -76,11 +79,11 @@ function App() {
                 },
               },
               {
-                name: "classes",
+                name: "program",
                 list: "/classes",
                 show: "/classes/show/:id",
                 meta: {
-                  label: "클래스 관리",
+                  label: "프로그램 관리",
                   icon: <BookOutlined />,
                 },
               },
@@ -94,6 +97,10 @@ function App() {
                   label: "챌린지 관리",
                   icon: <TrophyOutlined />,
                 },
+              },
+              {
+                name: "channels",
+                show: "/channels/show/:id",
               },
 
               {
@@ -173,7 +180,10 @@ function App() {
                   <Route path="show/:id" element={<ChallengeShow />} />
                 </Route>
 
-
+                {/* Channels */}
+                <Route path="/channels">
+                  <Route path="show/:id" element={<ChannelShow />} />
+                </Route>
 
                 {/* Revenue */}
                 <Route path="/revenue">
