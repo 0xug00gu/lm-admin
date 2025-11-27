@@ -1,6 +1,6 @@
 import { Show, useForm } from "@refinedev/antd";
-import { useShow } from "@refinedev/core";
-import { Tabs, Descriptions, Table, Tag, Button, Space, Form, Input } from "antd";
+import { useShow, useDelete, useNavigation } from "@refinedev/core";
+import { Tabs, Descriptions, Table, Tag, Button, Space, Form, Input, Modal } from "antd";
 import { PlusOutlined, DeleteOutlined, EditOutlined, SaveOutlined, CloseOutlined } from "@ant-design/icons";
 import { useState } from "react";
 
@@ -11,6 +11,8 @@ export const UserShow = () => {
 
   const userData = queryResult?.data?.data;
   const [isEditing, setIsEditing] = useState(false);
+  const { mutate: deleteUser } = useDelete();
+  const { list } = useNavigation();
 
   const { formProps, saveButtonProps, form } = useForm({
     resource: "discord_users",
@@ -36,6 +38,29 @@ export const UserShow = () => {
   const handleCancel = () => {
     form.resetFields();
     setIsEditing(false);
+  };
+
+  const handleDelete = () => {
+    Modal.confirm({
+      title: "사용자 삭제",
+      content: "해당 작업은 되돌릴 수 없습니다. 진행하시겠습니까?",
+      okText: "삭제",
+      okType: "danger",
+      cancelText: "취소",
+      onOk: () => {
+        deleteUser(
+          {
+            resource: "discord_users",
+            id: userData?.id,
+          },
+          {
+            onSuccess: () => {
+              list("discord_users");
+            },
+          }
+        );
+      },
+    });
   };
 
   return (
@@ -90,18 +115,29 @@ export const UserShow = () => {
                 </Descriptions>
               </Form>
             ) : (
-              <Descriptions bordered column={1}>
-                <Descriptions.Item label="ID">{userData?.id}</Descriptions.Item>
-                <Descriptions.Item label="이름">{userData?.name || "-"}</Descriptions.Item>
-                <Descriptions.Item label="휴대전화">{userData?.phone || "-"}</Descriptions.Item>
-                <Descriptions.Item label="Discord ID">{userData?.discord_id}</Descriptions.Item>
-                <Descriptions.Item label="디스코드 아이디">{userData?.username}</Descriptions.Item>
-                <Descriptions.Item label="활성 상태">
-                  <Tag color={userData?.is_active ? "green" : "red"}>
-                    {userData?.is_active ? "활성" : "비활성"}
-                  </Tag>
-                </Descriptions.Item>
-              </Descriptions>
+              <>
+                <Descriptions bordered column={1}>
+                  <Descriptions.Item label="ID">{userData?.id}</Descriptions.Item>
+                  <Descriptions.Item label="이름">{userData?.name || "-"}</Descriptions.Item>
+                  <Descriptions.Item label="휴대전화">{userData?.phone || "-"}</Descriptions.Item>
+                  <Descriptions.Item label="Discord ID">{userData?.discord_id}</Descriptions.Item>
+                  <Descriptions.Item label="디스코드 아이디">{userData?.username}</Descriptions.Item>
+                  <Descriptions.Item label="활성 상태">
+                    <Tag color={userData?.is_active ? "green" : "red"}>
+                      {userData?.is_active ? "활성" : "비활성"}
+                    </Tag>
+                  </Descriptions.Item>
+                </Descriptions>
+                <Button
+                  danger
+                  type="primary"
+                  icon={<DeleteOutlined />}
+                  onClick={handleDelete}
+                  style={{ marginTop: 16 }}
+                >
+                  사용자 삭제
+                </Button>
+              </>
             ),
           },
           {
