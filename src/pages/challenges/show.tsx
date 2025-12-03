@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
 import { Show } from "@refinedev/antd";
-import { useShow, useCreate, useDelete, useList } from "@refinedev/core";
+import { useShow, useCreate, useDelete, useList, useUpdate, useNavigation } from "@refinedev/core";
 import {
   Tabs,
   Descriptions,
@@ -36,7 +36,7 @@ import {
   PlusOutlined,
   DeleteOutlined,
 } from "@ant-design/icons";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 const { TextArea } = Input;
 
@@ -48,14 +48,40 @@ export const ChallengeShow = () => {
   const { data, isLoading } = queryResult;
   const record = data?.data;
 
+  const { list } = useNavigation();
+
   const [isChannelModalOpen, setIsChannelModalOpen] = useState(false);
   const [guilds, setGuilds] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [selectedGuildId, setSelectedGuildId] = useState<string>("");
   const [channelForm] = Form.useForm();
 
+  // 인증 설정 로컬 상태
+  const [demotionEnabled, setDemotionEnabled] = useState<boolean>(false);
+  const [hasChanges, setHasChanges] = useState(false);
+
   const { mutate: createChannel } = useCreate();
   const { mutate: deleteChannel } = useDelete();
+  const { mutate: updateChallenge } = useUpdate();
+  const { mutate: deleteChallenge } = useDelete();
+  const { mutate: updatePolicy } = useUpdate();
+  const { mutate: createPolicy } = useCreate();
+
+  // record가 로드되면 초기값 설정
+  useEffect(() => {
+    if (record) {
+      setDemotionEnabled(record.demotion_enabled || false);
+      setHasChanges(false);
+    }
+  }, [record]);
+
+  // 변경사항 감지
+  useEffect(() => {
+    if (record) {
+      const changed = demotionEnabled !== (record.demotion_enabled || false);
+      setHasChanges(changed);
+    }
+  }, [demotionEnabled, record]);
 
   // 채널 데이터 가져오기
   const { data: channelsData, refetch: refetchChannels } = useList({
@@ -66,6 +92,162 @@ export const ChallengeShow = () => {
   });
 
   const channels = channelsData?.data || [];
+
+  // weekly_stats 데이터 가져오기
+  const { data: weeklyStatsData, isLoading: isWeeklyStatsLoading } = useList({
+    resource: "weekly_stats",
+    pagination: {
+      mode: "off",
+    },
+  });
+
+  const weeklyStats = weeklyStatsData?.data || [];
+
+  // verifications 데이터 가져오기 (일별 인증 데이터)
+  const { data: verificationsData, isLoading: isVerificationsLoading } = useList({
+    resource: "verifications",
+    pagination: {
+      mode: "off",
+    },
+  });
+
+  const verifications = verificationsData?.data || [];
+
+  // users 데이터 가져오기
+  const { data: usersData, isLoading: isUsersLoading } = useList({
+    resource: "users",
+    pagination: {
+      mode: "off",
+    },
+  });
+
+  const users = usersData?.data || [];
+
+  // challenge_policies 데이터 가져오기
+  const { data: policyData, refetch: refetchPolicy } = useList({
+    resource: "challenge_policies",
+    filters: [
+      {
+        field: "challenge_id",
+        operator: "eq",
+        value: record?.id,
+      },
+    ],
+    queryOptions: {
+      enabled: !!record?.id,
+    },
+  });
+
+  const policy = policyData?.data?.[0]; // 첫 번째 정책 가져오기
+
+  // 팀 필터 상태
+  const [selectedTeam, setSelectedTeam] = useState<string>("all");
+
+  // 현재 주의 시작일(일요일)과 종료일(토요일) 계산
+  const getWeekRange = () => {
+    const now = dayjs();
+    const dayOfWeek = now.day(); // 0: 일요일, 1: 월요일, ...
+    const weekStart = now.subtract(dayOfWeek, 'day').startOf('day');
+    const weekEnd = weekStart.add(6, 'day').endOf('day');
+    return { weekStart, weekEnd };
+  };
+
+  // verifications 데이터를 테이블 형태로 변환 (1인당 2 row)
+  const getTableData = () => {
+    const { weekStart, weekEnd } = getWeekRange();
+
+    // 현재 주의 verifications만 필터링
+    const weekVerifications = verifications.filter((v: any) => {
+      const verifiedDate = dayjs(v.created);
+      return verifiedDate.isAfter(weekStart) && verifiedDate.isBefore(weekEnd);
+    });
+
+    // user별로 데이터 그룹화
+    const userMap = new Map();
+
+    users.forEach((user: any) => {
+      const userVerifications = weekVerifications.filter((v: any) => v.user_id === user.id);
+
+      // 요일별 인증 상태 계산
+      const dayStatus = {
+        sunday: { morning: false, daily: false },
+        monday: { morning: false, daily: false },
+        tuesday: { morning: false, daily: false },
+        wednesday: { morning: false, daily: false },
+        thursday: { morning: false, daily: false },
+        friday: { morning: false, daily: false },
+        saturday: { morning: false, daily: false },
+      };
+
+      const dayMap = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+      userVerifications.forEach((v: any) => {
+        const verifiedDate = dayjs(v.created);
+        const dayIndex = verifiedDate.day();
+        const dayName = dayMap[dayIndex];
+        const verificationType = v.verification_type || v.type; // 필드명이 다를 수 있음
+
+        if (verificationType === 'morning') {
+          dayStatus[dayName as keyof typeof dayStatus].morning = true;
+        } else if (verificationType === 'daily') {
+          dayStatus[dayName as keyof typeof dayStatus].daily = true;
+        }
+      });
+
+      // 연속 인증 계산 (임시로 0으로 설정)
+      const streak = 0;
+
+      userMap.set(user.id, {
+        userId: user.id,
+        name: user.name || user.discord_username || user.discord_id || 'Unknown',
+        team: user.team || '팀 없음',
+        dayStatus,
+        streak,
+      });
+    });
+
+    // 1인당 2 row 생성
+    const tableData: any[] = [];
+    userMap.forEach((userData) => {
+      // 아침 row
+      tableData.push({
+        id: `${userData.userId}-morning`,
+        userId: userData.userId,
+        name: userData.name,
+        team: userData.team,
+        type: 'morning',
+        sunday: userData.dayStatus.sunday.morning,
+        monday: userData.dayStatus.monday.morning,
+        tuesday: userData.dayStatus.tuesday.morning,
+        wednesday: userData.dayStatus.wednesday.morning,
+        thursday: userData.dayStatus.thursday.morning,
+        friday: userData.dayStatus.friday.morning,
+        saturday: userData.dayStatus.saturday.morning,
+        streak: userData.streak,
+      });
+
+      // 저녁 row
+      tableData.push({
+        id: `${userData.userId}-daily`,
+        userId: userData.userId,
+        type: 'daily',
+        sunday: userData.dayStatus.sunday.daily,
+        monday: userData.dayStatus.monday.daily,
+        tuesday: userData.dayStatus.tuesday.daily,
+        wednesday: userData.dayStatus.wednesday.daily,
+        thursday: userData.dayStatus.thursday.daily,
+        friday: userData.dayStatus.friday.daily,
+        saturday: userData.dayStatus.saturday.daily,
+      });
+    });
+
+    // 팀 필터링
+    if (selectedTeam !== "all") {
+      return tableData.filter((item) => item.team === selectedTeam);
+    }
+
+    return tableData;
+  };
 
   // 길드 목록 가져오기
   const fetchGuilds = async () => {
@@ -163,8 +345,130 @@ export const ChallengeShow = () => {
     });
   };
 
+  // 리셋방 on/off 토글 (로컬 상태만 변경)
+  const handleDemotionToggle = (checked: boolean) => {
+    setDemotionEnabled(checked);
+  };
+
+  // 설정 저장
+  const handleSaveSettings = () => {
+    // 1. challenges 테이블 업데이트
+    updateChallenge(
+      {
+        resource: "challenges",
+        id: record?.id,
+        values: {
+          demotion_enabled: demotionEnabled,
+        },
+      },
+      {
+        onSuccess: () => {
+          console.log("✅ 챌린지 업데이트 성공");
+
+          // 2. challenge_policies 테이블도 업데이트 (있으면 업데이트, 없으면 생성)
+          if (policy?.id) {
+            // 정책이 이미 있으면 업데이트
+            updatePolicy(
+              {
+                resource: "challenge_policies",
+                id: policy.id,
+                values: {
+                  // 여기에 업데이트할 정책 필드 추가
+                  // 예: min_weekly_count, revival_min_morning_count 등
+                },
+              },
+              {
+                onSuccess: () => {
+                  console.log("✅ 정책 업데이트 성공");
+                  message.success("설정이 저장되었습니다.");
+                  queryResult.refetch();
+                  refetchPolicy();
+                  setHasChanges(false);
+                },
+                onError: (error) => {
+                  console.error("❌ 정책 업데이트 실패:", error);
+                  message.warning("챌린지는 저장되었으나 정책 저장에 실패했습니다.");
+                },
+              }
+            );
+          } else {
+            // 정책이 없으면 새로 생성
+            createPolicy(
+              {
+                resource: "challenge_policies",
+                values: {
+                  challenge_id: record?.id,
+                  // 여기에 생성할 정책 필드 추가
+                },
+              },
+              {
+                onSuccess: () => {
+                  console.log("✅ 정책 생성 성공");
+                  message.success("설정이 저장되었습니다.");
+                  queryResult.refetch();
+                  refetchPolicy();
+                  setHasChanges(false);
+                },
+                onError: (error) => {
+                  console.error("❌ 정책 생성 실패:", error);
+                  message.warning("챌린지는 저장되었으나 정책 생성에 실패했습니다.");
+                },
+              }
+            );
+          }
+        },
+        onError: (error) => {
+          console.error("❌ 챌린지 업데이트 실패:", error);
+          message.error("설정 저장에 실패했습니다.");
+        },
+      }
+    );
+  };
+
+  // 챌린지 삭제
+  const handleDeleteChallenge = () => {
+    Modal.confirm({
+      title: "챌린지를 삭제하시겠습니까?",
+      content: "해당 작업은 되돌릴 수 없습니다. 모든 관련 데이터가 삭제됩니다.",
+      okText: "삭제",
+      okType: "danger",
+      cancelText: "취소",
+      onOk: () => {
+        deleteChallenge(
+          {
+            resource: "challenges",
+            id: record?.id,
+          },
+          {
+            onSuccess: () => {
+              message.success("챌린지가 삭제되었습니다.");
+              list("challenges");
+            },
+            onError: () => {
+              message.error("챌린지 삭제에 실패했습니다.");
+            },
+          }
+        );
+      },
+    });
+  };
+
   return (
-    <Show isLoading={isLoading}>
+    <Show
+      isLoading={isLoading}
+      headerButtons={({ defaultButtons }) => (
+        <>
+          {defaultButtons}
+          <Button
+            danger
+            icon={<DeleteOutlined />}
+            onClick={handleDeleteChallenge}
+          >
+            챌린지 삭제
+          </Button>
+        </>
+      )}
+    >
       <Tabs
         defaultActiveKey="info"
         items={[
@@ -241,6 +545,22 @@ export const ChallengeShow = () => {
                 {/* 인증 정책 설정 */}
                 <Card title="⚙️ 인증 정책" size="small">
                   <Space direction="vertical" style={{ width: "100%" }}>
+                    {/* 리셋방 on/off */}
+                    <div>
+                      <strong>리셋방 기능</strong>
+                      <div style={{ marginTop: 8 }}>
+                        <Switch
+                          checked={demotionEnabled}
+                          onChange={handleDemotionToggle}
+                          checkedChildren="ON"
+                          unCheckedChildren="OFF"
+                        />
+                      </div>
+                      <div style={{ color: "#888", fontSize: 12, marginTop: 4 }}>
+                        리셋방 기능을 활성화하면 주간 최소 인증 횟수 미달 시 리셋방으로 이동합니다
+                      </div>
+                    </div>
+                    <Divider />
                     <div>
                       <strong>주간 최소 인증 횟수</strong>
                       <div style={{ marginTop: 8 }}>
@@ -276,14 +596,16 @@ export const ChallengeShow = () => {
                   </Space>
                 </Card>
 
-                <Button type="primary">설정 저장</Button>
+                <Button type="primary" onClick={handleSaveSettings} disabled={!hasChanges}>
+                  설정 저장
+                </Button>
               </Space>
             ),
           },
 
           {
             key: "discord",
-            label: "디스코드 연동",
+            label: "팀 관리",
             icon: <MessageOutlined />,
             children: (
               <Space direction="vertical" size="large" style={{ width: "100%" }}>
@@ -492,95 +814,131 @@ export const ChallengeShow = () => {
             icon: <CheckCircleOutlined />,
             children: (
               <Space direction="vertical" size="large" style={{ width: "100%" }}>
-                {/* 인증 현황 */}
-                <Card title="📊 오늘 인증 현황">
-                  <Row gutter={16} style={{ marginBottom: 16 }}>
-                    <Col span={6}>
-                      <Statistic
-                        title="총 참여자"
-                        value={30}
-                        prefix={<TeamOutlined />}
-                      />
-                    </Col>
-                    <Col span={6}>
-                      <Statistic
-                        title="오늘 아침 인증"
-                        value={22}
-                        suffix="/ 30"
-                        valueStyle={{ color: "#3f8600" }}
-                      />
-                    </Col>
-                    <Col span={6}>
-                      <Statistic
-                        title="오늘 데일리 인증"
-                        value={18}
-                        suffix="/ 30"
-                        valueStyle={{ color: "#3f8600" }}
-                      />
-                    </Col>
-                     <Col span={6}>
-                      <Statistic
-                        title="전체 인증률"
-                        value={73.3}
-                        suffix="%"
-                        precision={1}
-                        valueStyle={{ color: "#3f8600" }}
-                      />
-                    </Col>
-                  </Row>
-                  <Table
-                    dataSource={[]}
-                    rowKey="id"
-                    pagination={{ pageSize: 10 }}
-                    scroll={{ x: 1400 }}
+                {/* 팀 필터 */}
+                <Space>
+                  <Select
+                    placeholder="팀 선택"
+                    style={{ width: 200 }}
+                    value={selectedTeam}
+                    onChange={setSelectedTeam}
                   >
-                    <Table.Column dataIndex="name" title="이름" width={100} fixed="left" />
-                    <Table.Column dataIndex="team" title="팀" width={100} />
+                    <Select.Option value="all">전체</Select.Option>
+                    <Select.Option value="1기 A팀">1기 A팀</Select.Option>
+                    <Select.Option value="1기 B팀">1기 B팀</Select.Option>
+                  </Select>
+                </Space>
+
+                {/* 인증 현황 테이블 */}
+                <Card title="📊 주간 인증 현황">
+                  <Table
+                    dataSource={getTableData()}
+                    rowKey="id"
+                    pagination={false}
+                    bordered
+                    size="small"
+                    scroll={{ x: 1000 }}
+                    loading={isVerificationsLoading || isUsersLoading}
+                  >
                     <Table.Column
-                      dataIndex="morningStatus"
-                      title="오늘 아침"
+                      dataIndex="name"
+                      title="이름"
                       width={100}
-                      align="center"
-                      render={(status) => {
-                        if (status === "done") return <span style={{ fontSize: 20 }}>✅</span>;
-                        if (status === "late") return <span style={{ fontSize: 20 }}>⏳</span>;
-                        return <span style={{ fontSize: 20 }}>❌</span>;
+                      fixed="left"
+                      onCell={(record: any) => {
+                        if (record.type === "morning") {
+                          return { rowSpan: 2 };
+                        }
+                        return { rowSpan: 0 };
                       }}
                     />
                     <Table.Column
-                      dataIndex="dailyStatus"
-                      title="오늘 데일리"
-                      width={100}
+                      dataIndex="type"
+                      title=""
+                      width={60}
                       align="center"
-                      render={(status) => {
-                        if (status === "done") return <span style={{ fontSize: 20 }}>✅</span>;
-                        if (status === "late") return <span style={{ fontSize: 20 }}>⏳</span>;
-                        if (status === "waiting") return <span style={{ fontSize: 20 }}>⬜</span>;
-                        return <span style={{ fontSize: 20 }}>❌</span>;
-                      }}
+                      render={(type: string) => (
+                        <span style={{ fontSize: 12, color: "#888" }}>
+                          {type === "morning" ? "아침" : "저녁"}
+                        </span>
+                      )}
                     />
                     <Table.Column
-                      dataIndex="weeklyMorningCount"
-                      title="주간 아침"
-                      width={100}
-                      render={(count) => `${count}/7`}
+                      dataIndex="sunday"
+                      title="일"
+                      width={60}
+                      align="center"
+                      render={(value: boolean) => (
+                        <span style={{ fontSize: 18 }}>{value ? "✅" : "❌"}</span>
+                      )}
                     />
                     <Table.Column
-                      dataIndex="weeklyDailyCount"
-                      title="주간 데일리"
-                      width={100}
-                      render={(count) => `${count}/7`}
+                      dataIndex="monday"
+                      title="월"
+                      width={60}
+                      align="center"
+                      render={(value: boolean) => (
+                        <span style={{ fontSize: 18 }}>{value ? "✅" : "❌"}</span>
+                      )}
+                    />
+                    <Table.Column
+                      dataIndex="tuesday"
+                      title="화"
+                      width={60}
+                      align="center"
+                      render={(value: boolean) => (
+                        <span style={{ fontSize: 18 }}>{value ? "✅" : "❌"}</span>
+                      )}
+                    />
+                    <Table.Column
+                      dataIndex="wednesday"
+                      title="수"
+                      width={60}
+                      align="center"
+                      render={(value: boolean) => (
+                        <span style={{ fontSize: 18 }}>{value ? "✅" : "❌"}</span>
+                      )}
+                    />
+                    <Table.Column
+                      dataIndex="thursday"
+                      title="목"
+                      width={60}
+                      align="center"
+                      render={(value: boolean) => (
+                        <span style={{ fontSize: 18 }}>{value ? "✅" : "❌"}</span>
+                      )}
+                    />
+                    <Table.Column
+                      dataIndex="friday"
+                      title="금"
+                      width={60}
+                      align="center"
+                      render={(value: boolean) => (
+                        <span style={{ fontSize: 18 }}>{value ? "✅" : "❌"}</span>
+                      )}
+                    />
+                    <Table.Column
+                      dataIndex="saturday"
+                      title="토"
+                      width={60}
+                      align="center"
+                      render={(value: boolean) => (
+                        <span style={{ fontSize: 18 }}>{value ? "✅" : "❌"}</span>
+                      )}
                     />
                     <Table.Column
                       dataIndex="streak"
                       title="연속 인증"
                       width={100}
-                      render={(days) => <Badge count={days} showZero color="blue" />}
-                    />
-                     <Table.Column
-                      dataIndex="lastCheckTime"
-                      title="최근 인증 시간"
-                      width={150}
+                      align="center"
+                      onCell={(record: any) => {
+                        if (record.type === "morning") {
+                          return { rowSpan: 2 };
+                        }
+                        return { rowSpan: 0 };
+                      }}
+                      render={(days: number) => (
+                        <Badge count={days} showZero color="blue" />
+                      )}
                     />
                   </Table>
                 </Card>
@@ -995,117 +1353,6 @@ export const ChallengeShow = () => {
                 </Card>
 
                 <Button type="primary">모든 템플릿 저장</Button>
-              </Space>
-            ),
-          },
-          {
-            key: "team-management",
-            label: "팀 관리",
-            children: (
-              <Space direction="vertical" size="large" style={{ width: "100%" }}>
-                <Alert
-                  message="팀 관리"
-                  description="챌린지 내 팀을 추가/삭제하고, 각 팀의 디스코드 채널을 관리합니다."
-                  type="info"
-                  showIcon
-                />
-
-                <Card
-                  title="👥 팀 목록"
-                  size="small"
-                  extra={<Button type="primary">+ 팀 추가</Button>}
-                >
-                  <Table
-                    dataSource={[
-                      { id: 1, name: "1팀", discordChannelId: "1234567890", memberCount: 8, status: "active" },
-                      { id: 2, name: "2팀", discordChannelId: "1234567891", memberCount: 7, status: "active" },
-                      { id: 3, name: "3팀", discordChannelId: "1234567892", memberCount: 9, status: "active" },
-                      { id: 4, name: "4팀", discordChannelId: "1234567893", memberCount: 6, status: "active" },
-                      { id: 5, name: "5팀", discordChannelId: "1234567894", memberCount: 8, status: "active" },
-                    ]}
-                    rowKey="id"
-                    pagination={false}
-                  >
-                    <Table.Column
-                      dataIndex="name"
-                      title="팀명"
-                      width={120}
-                    />
-                    <Table.Column
-                      dataIndex="discordChannelId"
-                      title="디스코드 채널 ID"
-                      render={(channelId) => (
-                        <Input
-                          defaultValue={channelId}
-                          placeholder="채널 ID를 입력하세요"
-                          style={{ width: 300 }}
-                        />
-                      )}
-                    />
-                    <Table.Column
-                      dataIndex="memberCount"
-                      title="팀원 수"
-                      width={100}
-                      align="center"
-                      render={(count) => (
-                        <Badge count={count} showZero color="blue" />
-                      )}
-                    />
-                    <Table.Column
-                      dataIndex="status"
-                      title="상태"
-                      width={100}
-                      render={(status) => (
-                        <Tag color={status === "active" ? "green" : "red"}>
-                          {status === "active" ? "활성" : "비활성"}
-                        </Tag>
-                      )}
-                    />
-                    <Table.Column
-                      title="작업"
-                      render={() => (
-                        <Space>
-                          <Button size="small" type="primary">저장</Button>
-                          <Button size="small">참여자 관리</Button>
-                          <Button size="small" danger>삭제</Button>
-                        </Space>
-                      )}
-                    />
-                  </Table>
-                </Card>
-
-                <Card title="⚙️ 팀 설정" size="small">
-                  <Space direction="vertical" style={{ width: "100%" }}>
-                    <div>
-                      <strong>팀 자동 배정</strong>
-                      <div style={{ marginTop: 8 }}>
-                        <Switch defaultChecked />
-                        <span style={{ marginLeft: 8 }}>
-                          새 참여자 등록시 자동으로 팀을 배정합니다
-                        </span>
-                      </div>
-                      <div style={{ color: "#888", fontSize: 12, marginTop: 4 }}>
-                        가장 인원이 적은 팀에 우선 배정됩니다
-                      </div>
-                    </div>
-                    <Divider />
-                    <div>
-                      <strong>팀별 최대 인원</strong>
-                      <div style={{ marginTop: 8 }}>
-                        <InputNumber
-                          defaultValue={10}
-                          min={1}
-                          max={50}
-                          addonAfter="명"
-                          style={{ width: 200 }}
-                        />
-                      </div>
-                      <div style={{ color: "#888", fontSize: 12, marginTop: 4 }}>
-                        팀당 최대 수용 가능한 인원 수
-                      </div>
-                    </div>
-                  </Space>
-                </Card>
               </Space>
             ),
           },

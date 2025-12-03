@@ -14,14 +14,7 @@ export const ChallengeList = () => {
   const { show } = useNavigation();
 
   return (
-    <List
-      headerButtons={({ defaultButtons }) => (
-        <>
-          {defaultButtons}
-          <CreateButton>챌린지 생성</CreateButton>
-        </>
-      )}
-    >
+    <List>
       {/* 검색/필터 영역 */}
       <Space style={{ marginBottom: 16 }} wrap>
         <Input placeholder="챌린지명 검색" prefix={<SearchOutlined />} style={{ width: 200 }} />

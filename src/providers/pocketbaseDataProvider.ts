@@ -6,6 +6,11 @@ let pbInstance: PocketBase | null = null;
 let isAuthenticating = false;
 let authPromise: Promise<void> | null = null;
 
+// Export function to get PocketBase instance
+export const getPocketBaseInstance = (): PocketBase | null => {
+  return pbInstance;
+};
+
 export const pocketbaseDataProvider = (
   apiUrl: string,
   email?: string,
@@ -14,10 +19,6 @@ export const pocketbaseDataProvider = (
   // Use singleton instance
   if (!pbInstance) {
     pbInstance = new PocketBase(apiUrl);
-    console.log("🔧 PocketBase instance created");
-    console.log("📍 API URL:", apiUrl);
-    console.log("📧 Email:", email ? `${email.substring(0, 3)}***` : "NOT PROVIDED");
-    console.log("🔑 Password:", password ? "***PROVIDED***" : "NOT PROVIDED");
   }
   const pb = pbInstance;
 
@@ -25,43 +26,28 @@ export const pocketbaseDataProvider = (
   const ensureAuth = async () => {
     // If already authenticated, return immediately
     if (pb.authStore.isValid) {
-      console.log("✅ Already authenticated");
       return;
     }
 
     // If authentication is in progress, wait for it
     if (isAuthenticating && authPromise) {
-      console.log("⏳ Waiting for authentication in progress...");
       await authPromise;
       return;
     }
 
     // Start authentication
     if (email && password) {
-      console.log("🔐 Starting authentication...");
       isAuthenticating = true;
       authPromise = (async () => {
         try {
-          console.log("📤 Sending auth request to:", `${apiUrl}/api/admins/auth-with-password`);
-          const authData = await pb.admins.authWithPassword(email, password);
-          console.log("✅ PocketBase admin authenticated");
-          console.log("👤 Admin:", authData.admin?.email);
-          console.log("🎫 Auth token:", pb.authStore.token ? "Present" : "Missing");
+          await pb.admins.authWithPassword(email, password);
         } catch (error: any) {
           console.error("❌ PocketBase authentication failed:", error);
-          console.error("📋 Error details:", {
-            url: error.url,
-            status: error.status,
-            data: error.data,
-            isAbort: error.isAbort,
-          });
         } finally {
           isAuthenticating = false;
         }
       })();
       await authPromise;
-    } else {
-      console.warn("⚠️ No credentials provided for authentication");
     }
   };
 

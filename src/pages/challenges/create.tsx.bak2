@@ -242,11 +242,41 @@ export const ChallengeCreate = () => {
           },
         }
       );
-    } catch (error: any) {
+    } catch (error: any) => {
       console.error("❌ Form 제출 중 오류:", error);
       message.error(`Form 제출 중 오류가 발생했습니다: ${error.message}`);
     }
   };
+
+  return (
+    <Create saveButtonProps={saveButtonProps}>
+      <Form
+        {...formProps}
+        onFinish={handleFinish}
+        layout="vertical"
+        initialValues={{
+          type: "lifemastery",
+          is_active: true,
+          demotion_enabled: false,
+          morning_normal_start: "05:00",
+          morning_normal_end: "10:00",
+          morning_late_end: "11:00",
+          daily_normal_start: "17:00",
+          daily_normal_end: "23:59",
+          daily_late_end: "01:00",
+          min_weekly_count: 4,
+          revival_min_morning_count: 3,
+          revival_min_daily_count: 3,
+          rest_period_weeks: 2,
+          daily_goal_minutes: 20,
+          min_meditation_minutes: 5,
+          start_message: "명상을 시작합니다 🧘‍♀️",
+          end_message: "명상을 종료합니다 ✨ 수고하셨습니다!",
+          declaration_deadline_day: "sun",
+          declaration_deadline_time: 23,
+          declaration_required: true
+        }}
+      >
 
   return (
     <Create saveButtonProps={saveButtonProps}>
