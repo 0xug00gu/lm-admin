@@ -1,7 +1,7 @@
 import { Create, useForm } from "@refinedev/antd";
 import { useList } from "@refinedev/core";
-import { Form, Input, DatePicker, InputNumber, Card, Divider, Alert, Switch, message, Select, Space, Button, Table, Modal } from "antd";
-import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
+import { Form, Input, DatePicker, InputNumber, Card, Divider, Alert, Switch, message, Select, Space, Button, Table, Modal, Tag } from "antd";
+import { PlusOutlined, DeleteOutlined, UserOutlined } from "@ant-design/icons";
 import { useState, useEffect, useRef } from "react";
 import { getPocketBaseInstance } from "../../providers/pocketbaseDataProvider";
 
@@ -65,6 +65,15 @@ export const ChallengeCreate = () => {
   const [channelsToCreate, setChannelsToCreate] = useState<any[]>([]);
   const [isChannelModalOpen, setIsChannelModalOpen] = useState(false);
   const [channelForm] = Form.useForm();
+
+  // 디스코드 사용자 목록
+  const { data: discordUsersData } = useList({
+    resource: "discord_users",
+    pagination: {
+      mode: "off",
+    },
+  });
+  const discordUsers = discordUsersData?.data || [];
 
 
   const { formProps, saveButtonProps, form } = useForm({
@@ -137,6 +146,10 @@ export const ChallengeCreate = () => {
         return;
       }
 
+      // 선택된 사용자들의 정보 가져오기
+      const selectedUserIds = values.users || [];
+      const selectedUsers = discordUsers.filter((user: any) => selectedUserIds.includes(user.id));
+
       // 목록에만 추가 (Discord 채널은 챌린지 저장 시 생성)
       const newChannel = {
         id: Date.now().toString(), // 임시 ID (프론트 관리용)
@@ -146,6 +159,7 @@ export const ChallengeCreate = () => {
         parent_id: values.parent_id || "",
         is_private: values.is_private || false,
         demotion_enabled: values.demotion_enabled || false,
+        users: selectedUsers, // 추가할 사용자 목록
       };
       setChannelsToCreate([...channelsToCreate, newChannel]);
       setIsChannelModalOpen(false);
@@ -265,6 +279,33 @@ export const ChallengeCreate = () => {
             const discordResult = await discordResponse.json();
             if (!discordResult.success) {
               console.error("Discord 채널 생성 실패:", channel.name, discordResult);
+            } else {
+              // 4. 채널에 사용자 추가 (채널 생성 성공 시)
+              const createdChannelId = discordResult.data?.channel_id;
+              if (createdChannelId && channel.users && channel.users.length > 0) {
+                for (const user of channel.users) {
+                  if (!user.discord_id) continue;
+                  try {
+                    const memberResponse = await fetch(
+                      `http://146.56.158.19/api/admin/discord/channels/${createdChannelId}/members`,
+                      {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          discord_user_id: user.discord_id,
+                          role: "member",
+                        }),
+                      }
+                    );
+                    const memberResult = await memberResponse.json();
+                    if (!memberResult.success) {
+                      console.error("채널 멤버 추가 실패:", user.name, memberResult);
+                    }
+                  } catch (memberErr) {
+                    console.error("채널 멤버 추가 중 에러:", memberErr);
+                  }
+                }
+              }
             }
           } catch (err) {
             console.error("채널 생성 중 에러:", err);
@@ -549,6 +590,24 @@ export const ChallengeCreate = () => {
                 render={(v) => (v ? "O" : "-")}
               />
               <Table.Column
+                dataIndex="users"
+                title="참여 사용자"
+                render={(users: any[]) => (
+                  users && users.length > 0 ? (
+                    <Space wrap size={[0, 4]}>
+                      {users.slice(0, 3).map((user: any) => (
+                        <Tag key={user.id} icon={<UserOutlined />} color="blue">
+                          {user.name || user.username}
+                        </Tag>
+                      ))}
+                      {users.length > 3 && (
+                        <Tag color="default">+{users.length - 3}명</Tag>
+                      )}
+                    </Space>
+                  ) : "-"
+                )}
+              />
+              <Table.Column
                 title="작업"
                 render={(_, record: any) => (
                   <Button
@@ -644,6 +703,27 @@ export const ChallengeCreate = () => {
               initialValue={false}
             >
               <Switch />
+            </Form.Item>
+            <Divider />
+            <Form.Item
+              name="users"
+              label="참여 사용자"
+              help="채널에 추가할 사용자를 선택하세요 (선택사항)"
+            >
+              <Select
+                mode="multiple"
+                placeholder="사용자를 선택하세요"
+                showSearch
+                optionFilterProp="children"
+                filterOption={(input, option) =>
+                  (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+                }
+                options={discordUsers.map((user: any) => ({
+                  label: `${user.name || "이름없음"} (${user.username || "ID없음"})`,
+                  value: user.id,
+                }))}
+                style={{ width: "100%" }}
+              />
             </Form.Item>
           </Form>
         </Modal>

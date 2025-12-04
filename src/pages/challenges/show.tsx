@@ -35,6 +35,8 @@ import {
   SettingOutlined,
   PlusOutlined,
   DeleteOutlined,
+  UserOutlined,
+  UserAddOutlined,
 } from "@ant-design/icons";
 import { useState, useEffect } from "react";
 
@@ -58,6 +60,14 @@ export const ChallengeShow = () => {
   const [selectedGuildId, setSelectedGuildId] = useState<string>("");
   const [channelForm] = Form.useForm();
   const [editChannelForm] = Form.useForm();
+
+  // 멤버 관리 상태
+  const [selectedChannel, setSelectedChannel] = useState<any>(null);
+  const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
+  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+  const [channelMembers, setChannelMembers] = useState<any[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(false);
+  const [addMemberForm] = Form.useForm();
 
   // 인증 설정 로컬 상태
   const [demotionEnabled, setDemotionEnabled] = useState<boolean>(false);
@@ -106,6 +116,15 @@ export const ChallengeShow = () => {
   });
 
   const channels = channelsData?.data || [];
+
+  // 디스코드 사용자 목록 가져오기
+  const { data: discordUsersData } = useList({
+    resource: "discord_users",
+    pagination: {
+      mode: "off",
+    },
+  });
+  const discordUsers = discordUsersData?.data || [];
 
   // weekly_stats 데이터 가져오기
   const { data: weeklyStatsData, isLoading: isWeeklyStatsLoading } = useList({
@@ -554,6 +573,136 @@ export const ChallengeShow = () => {
     });
   };
 
+  // 채널 멤버 목록 가져오기
+  const fetchChannelMembers = async (channel: any) => {
+    if (!channel?.channel_id) {
+      message.error("채널 ID가 없습니다.");
+      return;
+    }
+
+    setLoadingMembers(true);
+    try {
+      // PocketBase에서 channel_members 조회 (expand로 discord_user 정보 포함)
+      const response = await fetch(
+        `http://146.56.158.19/_/api/collections/channel_members/records?filter=(channel_id='${channel.id}')&expand=discord_user_id`
+      );
+      const result = await response.json();
+
+      if (result.items) {
+        setChannelMembers(result.items);
+      } else {
+        setChannelMembers([]);
+      }
+    } catch (error) {
+      console.error("멤버 목록 가져오기 실패:", error);
+      message.error("멤버 목록을 가져오는데 실패했습니다.");
+      setChannelMembers([]);
+    } finally {
+      setLoadingMembers(false);
+    }
+  };
+
+  // 채널 멤버 보기 Modal 열기
+  const handleViewMembers = async (channel: any) => {
+    setSelectedChannel(channel);
+    setIsMemberModalOpen(true);
+    await fetchChannelMembers(channel);
+  };
+
+  // 채널에 멤버 추가
+  const handleAddMember = async () => {
+    try {
+      const values = await addMemberForm.validateFields();
+
+      if (!selectedChannel?.channel_id) {
+        message.error("채널 정보가 없습니다.");
+        return;
+      }
+
+      // 선택한 유저의 discord_id 찾기
+      const selectedUser = discordUsers.find((user: any) => user.id === values.user_record_id);
+
+      if (!selectedUser?.discord_id) {
+        message.error("선택한 유저의 Discord ID를 찾을 수 없습니다.");
+        return;
+      }
+
+      const response = await fetch(
+        `http://146.56.158.19/api/admin/discord/channels/${selectedChannel.channel_id}/members`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            discord_user_id: selectedUser.discord_id,
+            role: values.role || "member",
+          }),
+        }
+      );
+
+      const result = await response.json();
+
+      if (result.success) {
+        message.success("멤버가 추가되었습니다.");
+        setIsAddMemberModalOpen(false);
+        addMemberForm.resetFields();
+        // 멤버 목록 새로고침
+        await fetchChannelMembers(selectedChannel);
+      } else {
+        message.error(result.message || "멤버 추가에 실패했습니다.");
+      }
+    } catch (error) {
+      console.error("멤버 추가 에러:", error);
+      message.error("멤버 추가 중 오류가 발생했습니다.");
+    }
+  };
+
+  // 채널에서 멤버 제거
+  const handleRemoveMember = (member: any) => {
+    const discordId = member.expand?.discord_user_id?.discord_id;
+    const userName = member.expand?.discord_user_id?.name || member.expand?.discord_user_id?.username || "알 수 없음";
+
+    if (!discordId) {
+      message.error("Discord ID를 찾을 수 없습니다.");
+      return;
+    }
+
+    Modal.confirm({
+      title: "멤버를 채널에서 제거하시겠습니까?",
+      content: `${userName} 님을 이 채널에서 제거합니다.`,
+      okText: "제거",
+      okType: "danger",
+      cancelText: "취소",
+      onOk: async () => {
+        try {
+          const response = await fetch(
+            `http://146.56.158.19/api/admin/discord/channels/${selectedChannel?.channel_id}/members/${discordId}`,
+            {
+              method: "DELETE",
+              headers: {
+                "Content-Type": "application/json",
+              },
+            }
+          );
+
+          const result = await response.json();
+
+          if (result.success) {
+            message.success("멤버가 제거되었습니다.");
+            // 멤버 목록 새로고침
+            await fetchChannelMembers(selectedChannel);
+          } else {
+            message.error(result.message || "멤버 제거에 실패했습니다.");
+          }
+        } catch (error) {
+          console.error("멤버 제거 에러:", error);
+          message.error("멤버 제거 중 오류가 발생했습니다.");
+        }
+      },
+    });
+  };
+
   return (
     <Show
       isLoading={isLoading}
@@ -767,9 +916,19 @@ export const ChallengeShow = () => {
                     />
                     <Table.Column
                       title="작업"
-                      width={150}
+                      width={220}
                       render={(_, channelRecord: any) => (
                         <Space>
+                          <Button
+                            size="small"
+                            icon={<UserOutlined />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleViewMembers(channelRecord);
+                            }}
+                          >
+                            멤버
+                          </Button>
                           <Button
                             size="small"
                             onClick={(e) => {
@@ -991,6 +1150,136 @@ export const ChallengeShow = () => {
                       valuePropName="checked"
                     >
                       <Switch />
+                    </Form.Item>
+                  </Form>
+                </Modal>
+
+                {/* 채널 멤버 목록 Modal */}
+                <Modal
+                  title={`${selectedChannel?.name || "채널"} 멤버 관리`}
+                  open={isMemberModalOpen}
+                  onCancel={() => {
+                    setIsMemberModalOpen(false);
+                    setSelectedChannel(null);
+                    setChannelMembers([]);
+                  }}
+                  footer={[
+                    <Button key="close" onClick={() => {
+                      setIsMemberModalOpen(false);
+                      setSelectedChannel(null);
+                      setChannelMembers([]);
+                    }}>
+                      닫기
+                    </Button>,
+                  ]}
+                  width={700}
+                >
+                  <Space style={{ marginBottom: 16 }}>
+                    <Button
+                      type="primary"
+                      icon={<UserAddOutlined />}
+                      onClick={() => setIsAddMemberModalOpen(true)}
+                    >
+                      멤버 추가
+                    </Button>
+                  </Space>
+                  <Table
+                    dataSource={channelMembers}
+                    rowKey="id"
+                    loading={loadingMembers}
+                    pagination={false}
+                    size="small"
+                  >
+                    <Table.Column
+                      title="이름"
+                      dataIndex={["expand", "discord_user_id", "name"]}
+                      width={120}
+                      render={(name, record: any) => name || record.expand?.discord_user_id?.username || "-"}
+                    />
+                    <Table.Column
+                      title="디스코드 ID"
+                      dataIndex={["expand", "discord_user_id", "username"]}
+                      width={150}
+                    />
+                    <Table.Column
+                      title="이메일"
+                      dataIndex={["expand", "discord_user_id", "email"]}
+                      width={180}
+                      render={(email) => email || "-"}
+                    />
+                    <Table.Column
+                      title="역할"
+                      dataIndex="role"
+                      width={100}
+                      render={(role) => (
+                        <Tag color="blue">{role || "member"}</Tag>
+                      )}
+                    />
+                    <Table.Column
+                      title="작업"
+                      width={80}
+                      render={(_, memberRecord: any) => (
+                        <Button
+                          danger
+                          size="small"
+                          icon={<DeleteOutlined />}
+                          onClick={() => handleRemoveMember(memberRecord)}
+                        >
+                          제거
+                        </Button>
+                      )}
+                    />
+                  </Table>
+                  {channelMembers.length === 0 && !loadingMembers && (
+                    <div style={{ textAlign: "center", padding: 20, color: "#888" }}>
+                      채널에 멤버가 없습니다.
+                    </div>
+                  )}
+                </Modal>
+
+                {/* 멤버 추가 Modal */}
+                <Modal
+                  title={`${selectedChannel?.name || "채널"}에 멤버 추가`}
+                  open={isAddMemberModalOpen}
+                  onOk={handleAddMember}
+                  onCancel={() => {
+                    setIsAddMemberModalOpen(false);
+                    addMemberForm.resetFields();
+                  }}
+                  okText="추가"
+                  cancelText="취소"
+                >
+                  <Form form={addMemberForm} layout="vertical">
+                    <Form.Item
+                      name="user_record_id"
+                      label="유저 선택"
+                      rules={[{ required: true, message: "유저를 선택하세요" }]}
+                    >
+                      <Select
+                        showSearch
+                        placeholder="유저를 선택하세요"
+                        optionFilterProp="children"
+                        filterOption={(input, option) =>
+                          (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+                        }
+                        options={discordUsers.map((user: any) => ({
+                          label: `${user.name || "이름없음"} (${user.username || "ID없음"})`,
+                          value: user.id,
+                        }))}
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      name="role"
+                      label="역할"
+                      initialValue="member"
+                    >
+                      <Select
+                        options={[
+                          { label: "멤버", value: "member" },
+                          { label: "관리자", value: "admin" },
+                          { label: "모더레이터", value: "moderator" },
+                        ]}
+                      />
                     </Form.Item>
                   </Form>
                 </Modal>
