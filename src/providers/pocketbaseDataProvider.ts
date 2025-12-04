@@ -58,8 +58,53 @@ export const pocketbaseDataProvider = (
       const page = pagination?.current || 1;
       const perPage = pagination?.pageSize || 10;
 
+      // Build PocketBase filter string from refine filters
+      let filterStr = "";
+      if (filters && filters.length > 0) {
+        const filterParts = filters
+          .map((filter: any) => {
+            const { field, operator, value } = filter;
+            if (value === undefined || value === null || value === "") {
+              return null;
+            }
+            switch (operator) {
+              case "eq":
+                return `${field}="${value}"`;
+              case "ne":
+                return `${field}!="${value}"`;
+              case "contains":
+                return `${field}~"${value}"`;
+              case "gt":
+                return `${field}>"${value}"`;
+              case "gte":
+                return `${field}>="${value}"`;
+              case "lt":
+                return `${field}<"${value}"`;
+              case "lte":
+                return `${field}<="${value}"`;
+              default:
+                return `${field}="${value}"`;
+            }
+          })
+          .filter(Boolean);
+        filterStr = filterParts.join(" && ");
+      }
+
+      // Build sort string from refine sorters
+      let sortStr = "";
+      if (sorters && sorters.length > 0) {
+        sortStr = sorters
+          .map((sorter: any) => {
+            const prefix = sorter.order === "desc" ? "-" : "";
+            return `${prefix}${sorter.field}`;
+          })
+          .join(",");
+      }
+
       const result = await pb.collection(resource).getList(page, perPage, {
         expand: meta?.expand,
+        filter: filterStr || undefined,
+        sort: sortStr || undefined,
       });
 
       return {

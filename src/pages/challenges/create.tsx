@@ -1,28 +1,79 @@
 import { Create, useForm } from "@refinedev/antd";
-import { useCreate, useList } from "@refinedev/core";
-import { Form, Input, DatePicker, InputNumber, Radio, Card, Divider, Alert, Switch, message, Select } from "antd";
-import { useState, useEffect } from "react";
+import { useList } from "@refinedev/core";
+import { Form, Input, DatePicker, InputNumber, Card, Divider, Alert, Switch, message, Select, Space, Button, Table, Modal } from "antd";
+import { PlusOutlined, DeleteOutlined } from "@ant-design/icons";
+import { useState, useEffect, useRef } from "react";
+import { getPocketBaseInstance } from "../../providers/pocketbaseDataProvider";
 
 const { RangePicker } = DatePicker;
 const { TextArea } = Input;
 
-export const ChallengeCreate = () => {
-  const [challengeType, setChallengeType] = useState<string>("lifemastery");
-  const [guilds, setGuilds] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [selectedGuildId, setSelectedGuildId] = useState<string>("");
-  const [challengeCategories, setChallengeCategories] = useState<any[]>([]);
+// 시간 선택 컴포넌트 (오전/오후 + 1~12시)
+const TimeSelector = ({ value, onChange }: { value?: { period: string; hour: number }; onChange?: (val: { period: string; hour: number }) => void }) => {
+  const currentValue = value || { period: "오전", hour: 5 };
 
-  const { mutate: createChallenge } = useCreate();
-  const { mutate: createPolicy } = useCreate();
+  const hourOptions = Array.from({ length: 12 }, (_, i) => ({
+    label: `${i + 1}시`,
+    value: i + 1,
+  }));
+
+  return (
+    <Space>
+      <Select
+        value={currentValue.period}
+        onChange={(period) => onChange?.({ ...currentValue, period })}
+        style={{ width: 80 }}
+        options={[
+          { label: "오전", value: "오전" },
+          { label: "오후", value: "오후" },
+        ]}
+      />
+      <Select
+        value={currentValue.hour}
+        onChange={(hour) => onChange?.({ ...currentValue, hour })}
+        style={{ width: 80 }}
+        options={hourOptions}
+      />
+    </Space>
+  );
+};
+
+// 오전/오후 + 시간을 24시간제로 변환
+const convertTo24Hour = (period: string, hour: number): number => {
+  if (period === "오전") {
+    return hour === 12 ? 0 : hour;
+  } else {
+    return hour === 12 ? 12 : hour + 12;
+  }
+};
+
+// 24시간제를 오전/오후 + 시간으로 변환
+const convertFrom24Hour = (hour24: number): { period: string; hour: number } => {
+  if (hour24 === 0) return { period: "오전", hour: 12 };
+  if (hour24 < 12) return { period: "오전", hour: hour24 };
+  if (hour24 === 12) return { period: "오후", hour: 12 };
+  return { period: "오후", hour: hour24 - 12 };
+};
+
+export const ChallengeCreate = () => {
+  const [challengeCategories, setChallengeCategories] = useState<any[]>([]);
+  const [guilds, setGuilds] = useState<any[]>([]);
+  const [discordCategories, setDiscordCategories] = useState<any[]>([]);
+  const [selectedGuildId, setSelectedGuildId] = useState<string>("");
+
+  // 채널 관리
+  const [channelsToCreate, setChannelsToCreate] = useState<any[]>([]);
+  const [isChannelModalOpen, setIsChannelModalOpen] = useState(false);
+  const [channelForm] = Form.useForm();
+
 
   const { formProps, saveButtonProps, form } = useForm({
     redirect: false, // 자동 리다이렉트 비활성화
   });
 
-  // challenge_categories 테이블 데이터 가져오기
+  // challenge_category 테이블 데이터 가져오기
   const { data: challengeCategoriesData } = useList({
-    resource: "challenge_categories",
+    resource: "challenge_category",
     pagination: {
       mode: "off",
     },
@@ -52,199 +103,201 @@ export const ChallengeCreate = () => {
     }
   };
 
-  // 카테고리 목록 가져오기
-  const fetchCategories = async (guildId: string) => {
+  // 디스코드 카테고리 목록 가져오기
+  const fetchDiscordCategories = async (guildId: string) => {
     try {
       const response = await fetch(`http://146.56.158.19/api/admin/discord/guilds/${guildId}/categories`);
       const result = await response.json();
       if (result.success) {
-        setCategories(result.data);
+        setDiscordCategories(result.data);
       }
     } catch (error) {
-      console.error("카테고리 목록 가져오기 실패:", error);
+      console.error("디스코드 카테고리 목록 가져오기 실패:", error);
     }
   };
 
   // 길드 선택 시
   const handleGuildChange = (guildId: string) => {
     setSelectedGuildId(guildId);
-    fetchCategories(guildId);
-    form.setFieldsValue({ category_id: undefined });
+    if (guildId) {
+      fetchDiscordCategories(guildId);
+    } else {
+      setDiscordCategories([]);
+    }
+    channelForm.setFieldsValue({ parent_id: undefined });
   };
 
-  // Form 제출 시 데이터 변환
-  const handleFinish = (values: any) => {
+  // 채널 추가 (목록에만 추가, 실제 Discord 생성은 챌린지 저장 시)
+  const handleAddChannelToList = async () => {
     try {
-      console.log("📝 Form 제출 시작:", values);
+      const values = await channelForm.validateFields();
+
+      if (!selectedGuildId) {
+        message.error("길드를 선택하세요");
+        return;
+      }
+
+      // 목록에만 추가 (Discord 채널은 챌린지 저장 시 생성)
+      const newChannel = {
+        id: Date.now().toString(), // 임시 ID (프론트 관리용)
+        name: values.name,
+        guild_id: selectedGuildId,
+        type: values.type || "text",
+        parent_id: values.parent_id || "",
+        is_private: values.is_private || false,
+        demotion_enabled: values.demotion_enabled || false,
+      };
+      setChannelsToCreate([...channelsToCreate, newChannel]);
+      setIsChannelModalOpen(false);
+      channelForm.resetFields();
+      setSelectedGuildId("");
+      setDiscordCategories([]);
+      message.success(`채널 '${newChannel.name}'이(가) 목록에 추가되었습니다.`);
+    } catch (error: any) {
+      console.error("채널 추가 에러:", error);
+      message.error("채널 추가 중 오류가 발생했습니다.");
+    }
+  };
+
+  // 채널 삭제 (목록에서만 제거 - 아직 Discord에 생성 안 됨)
+  const handleRemoveChannelFromList = (id: string) => {
+    setChannelsToCreate(channelsToCreate.filter((ch) => ch.id !== id));
+    message.success("채널이 목록에서 제거되었습니다.");
+  };
+
+  // 제출 중복 방지
+  const isSubmitting = useRef(false);
+
+  // Form 제출 시 데이터 변환 - PocketBase 직접 호출로 중복 방지
+  const handleFinish = async (values: any) => {
+    // 이미 제출 중이면 무시
+    if (isSubmitting.current) {
+      return;
+    }
+    isSubmitting.current = true;
+
+    try {
+      const pb = getPocketBaseInstance();
+      if (!pb) {
+        message.error("DB 연결에 실패했습니다.");
+        isSubmitting.current = false;
+        return;
+      }
 
       // period가 없으면 에러
       if (!values.period || !values.period[0] || !values.period[1]) {
         message.error("기간을 선택해주세요.");
+        isSubmitting.current = false;
         return;
       }
 
-      // 정책 필드들 분리 (항상 생성)
-      const policyFields = {
-        morning_normal_start: values.morning_normal_start || "05:00",
-        morning_normal_end: values.morning_normal_end || "10:00",
-        morning_late_end: values.morning_late_end || "11:00",
-        daily_normal_start: values.daily_normal_start || "17:00",
-        daily_normal_end: values.daily_normal_end || "23:59",
-        daily_late_end: values.daily_late_end || "01:00",
-        min_weekly_count: values.min_weekly_count || 4,
-        revival_min_morning_count: values.revival_min_morning_count || 3,
-        revival_min_daily_count: values.revival_min_daily_count || 3,
-        rest_period_weeks: values.rest_period_weeks || 2,
-        daily_goal_minutes: values.daily_goal_minutes || 20,
-        min_meditation_minutes: values.min_meditation_minutes || 5,
-        start_message: values.start_message || "명상을 시작합니다 🧘‍♀️",
-        end_message: values.end_message || "명상을 종료합니다 ✨ 수고하셨습니다!",
-        declaration_deadline_day: values.declaration_deadline_day || "sun",
-        declaration_deadline_time: values.declaration_deadline_time !== undefined ? values.declaration_deadline_time : 23,
-        declaration_required: values.declaration_required !== undefined ? values.declaration_required : true,
+      // 정책 필드들 분리 (항상 생성) - API 스키마에 맞게 변환
+      // TimeSelector 값에서 24시간제 시간 추출
+      const getHourFrom = (timeValue: { period: string; hour: number } | undefined, defaultHour: number): number => {
+        if (!timeValue) return defaultHour;
+        return convertTo24Hour(timeValue.period, timeValue.hour);
       };
 
-      // undefined/null 값 제거
-      const cleanedPolicyFields = Object.fromEntries(
-        Object.entries(policyFields).filter(([_, v]) => v !== undefined && v !== null && v !== "")
-      );
+      const policyFields = {
+        name: `${values.name} 정책`,
+        morning_start_hour: getHourFrom(values.morning_normal_start, 5),
+        morning_end_hour: getHourFrom(values.morning_normal_end, 10),
+        morning_late_hour: getHourFrom(values.morning_late_end, 11),
+        daily_start_hour: getHourFrom(values.daily_normal_start, 17),
+        daily_end_hour: getHourFrom(values.daily_normal_end, 23),
+        daily_late_hour: getHourFrom(values.daily_late_end, 1),
+        min_weekly_morning: values.revival_min_morning_count || 3,
+        min_weekly_daily: values.revival_min_daily_count || 3,
+        revival_deadline_days: (values.rest_period_weeks || 2) * 7,
+        rest_transition_days: (values.rest_period_weeks || 2) * 7,
+        description: values.description || "",
+        is_active: true,
+      };
 
-      // 챌린지 데이터 생성 - 필수 필드
+      // 챌린지 데이터 생성
       const challengeValues: any = {
         name: values.name,
-        type: values.type,
         start_date: values.period[0].toISOString(),
         end_date: values.period[1].toISOString(),
         is_active: values.is_active !== undefined ? values.is_active : true,
         demotion_enabled: values.demotion_enabled !== undefined ? values.demotion_enabled : false,
       };
 
-      // 선택 필드 추가 (값이 있을 때만)
-      console.log("🔢 cardinal_number 값:", values.cardinal_number, "타입:", typeof values.cardinal_number);
-      // cardinal_number는 0도 유효한 값이므로 숫자 타입일 때 저장
       if (typeof values.cardinal_number === 'number' || (values.cardinal_number !== undefined && values.cardinal_number !== null && values.cardinal_number !== "")) {
         challengeValues.cardinal_number = Number(values.cardinal_number);
-        console.log("✅ cardinal_number 저장됨:", challengeValues.cardinal_number);
-      } else {
-        console.log("⚠️ cardinal_number가 비어있거나 유효하지 않음");
       }
       if (values.description) {
         challengeValues.description = values.description;
       }
-      // 챌린지 카테고리 ID 저장 (challenge_categories 테이블 레코드 ID)
-      if (values.category_id) {
-        challengeValues.category_id = values.category_id;
-        console.log("✅ category_id 저장됨:", challengeValues.category_id);
-      }
-      // Discord 카테고리 ID 저장 (선택사항)
-      if (values.discord_category_id) {
-        challengeValues.discord_category_id = values.discord_category_id;
-        console.log("✅ discord_category_id 저장됨:", challengeValues.discord_category_id);
-      }
-      if (values.channel_id) {
-        challengeValues.channel_id = values.channel_id;
-      }
-      if (values.role_id) {
-        challengeValues.role_id = values.role_id;
+      if (values.challenge_category_id) {
+        challengeValues.category_id = values.challenge_category_id;
       }
 
-      const cleanedChallengeValues = challengeValues;
+      // 1. 정책 생성 (PocketBase 직접 호출)
+      const policyRecord = await pb.collection("challenge_policies").create(policyFields);
 
-      console.log("🔄 챌린지 데이터:", cleanedChallengeValues);
-      console.log("🔄 정책 데이터:", cleanedPolicyFields);
+      // 2. 챌린지 생성 (PocketBase 직접 호출)
+      const challengeRecord = await pb.collection("challenges").create({
+        ...challengeValues,
+        policy_id: policyRecord.id,
+      });
 
-      // 1. 먼저 정책 생성 (무조건 생성)
-      console.log("📝 정책 데이터 생성 시작:", cleanedPolicyFields);
-
-      createPolicy(
-        {
-          resource: "challenge_policies",
-          values: cleanedPolicyFields,
-        },
-        {
-          onSuccess: (policyData: any) => {
-            console.log("✅ 정책 생성 성공:", policyData);
-            const policyId = policyData?.data?.id;
-
-            if (!policyId) {
-              message.error("정책 ID를 가져올 수 없습니다.");
-              return;
-            }
-
-            // 2. 정책 생성 성공 후, policy_id를 포함해서 챌린지 생성
-            const challengeValuesWithPolicy = {
-              ...cleanedChallengeValues,
-              policy_id: policyId,
-            };
-
-            console.log("📝 챌린지 데이터 생성 시작 (policy_id 포함):", challengeValuesWithPolicy);
-
-            createChallenge(
+      // 3. 채널 생성 (있으면) - Discord API가 DB 저장까지 처리함
+      if (channelsToCreate.length > 0) {
+        for (const channel of channelsToCreate) {
+          try {
+            const discordResponse = await fetch(
+              `http://146.56.158.19/api/admin/discord/guilds/${channel.guild_id}/channels`,
               {
-                resource: "challenges",
-                values: challengeValuesWithPolicy,
-              },
-              {
-                onSuccess: (challengeData: any) => {
-                  console.log("✅ 챌린지 생성 성공:", challengeData);
-                  message.success("챌린지와 정책이 생성되었습니다.");
-                  // 목록 페이지로 이동
-                  window.location.href = "/challenges";
-                },
-                onError: (error: any) => {
-                  console.error("❌ 챌린지 생성 실패:", error);
-                  console.error("❌ 에러 전체 객체:", JSON.stringify(error, null, 2));
-                  console.error("❌ 에러 응답 데이터:", error?.response);
-                  console.error("❌ 에러 데이터:", error?.data);
-
-                  // 에러 메시지 추출
-                  let errorMessage = "챌린지 생성에 실패했습니다.";
-
-                  // PocketBase 에러 형식 처리
-                  if (error?.data) {
-                    const errorData = error.data;
-                    if (errorData.data) {
-                      // 필드별 에러 메시지 조합
-                      const fieldErrors = Object.entries(errorData.data).map(([field, err]: [string, any]) => {
-                        return `${field}: ${err.message || err.code}`;
-                      }).join('\n');
-                      errorMessage = `검증 오류:\n${fieldErrors}`;
-                    } else if (errorData.message) {
-                      errorMessage = errorData.message;
-                    }
-                  } else if (error?.response?.data?.message) {
-                    errorMessage = error.response.data.message;
-                  } else if (error?.message) {
-                    errorMessage = error.message;
-                  } else if (typeof error === 'string') {
-                    errorMessage = error;
-                  }
-
-                  message.error(errorMessage, 10);
-                  console.error("📋 전송한 데이터:", challengeValuesWithPolicy);
-                },
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  name: channel.name,
+                  type: channel.type === "text" ? 0 : channel.type === "voice" ? 2 : 0,
+                  parent_id: channel.parent_id || undefined,
+                  is_private: channel.is_private || false,
+                  challenge_id: challengeRecord.id,
+                  demotion_enabled: channel.demotion_enabled || false,
+                }),
               }
             );
-          },
-          onError: (error: any) => {
-            console.error("❌ 정책 생성 실패:", error);
-            console.error("❌ 에러 전체 객체:", JSON.stringify(error, null, 2));
 
-            let errorMessage = "정책 생성에 실패했습니다.";
-            if (error?.data?.message) {
-              errorMessage = error.data.message;
-            } else if (error?.message) {
-              errorMessage = error.message;
+            const discordResult = await discordResponse.json();
+            if (!discordResult.success) {
+              console.error("Discord 채널 생성 실패:", channel.name, discordResult);
             }
-
-            message.error(errorMessage, 10);
-            console.error("📋 전송한 정책 데이터:", cleanedPolicyFields);
-          },
+          } catch (err) {
+            console.error("채널 생성 중 에러:", err);
+          }
         }
-      );
+      }
+
+      message.success("챌린지가 생성되었습니다.");
+      window.location.href = "/challenges";
+
     } catch (error: any) {
-      console.error("❌ Form 제출 중 오류:", error);
-      message.error(`Form 제출 중 오류가 발생했습니다: ${error.message}`);
+      console.error("생성 실패:", error);
+
+      let errorMessage = "생성에 실패했습니다.";
+      if (error?.data?.data) {
+        const fieldErrors = error.data.data;
+        const errorMessages: string[] = [];
+        for (const [field, err] of Object.entries(fieldErrors) as [string, any][]) {
+          let fieldName = field;
+          if (field === "name") fieldName = "챌린지명";
+          let errMsg = err.message || err.code;
+          if (err.code === "validation_not_unique") {
+            errMsg = "이미 사용 중인 값입니다.";
+          }
+          errorMessages.push(`${fieldName}: ${errMsg}`);
+        }
+        errorMessage = errorMessages.join("\n");
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+
+      message.error(errorMessage, 10);
+      isSubmitting.current = false;
     }
   };
 
@@ -255,92 +308,38 @@ export const ChallengeCreate = () => {
         onFinish={handleFinish}
         layout="vertical"
         initialValues={{
-          type: "lifemastery",
           is_active: true,
           demotion_enabled: false,
-          morning_normal_start: "05:00",
-          morning_normal_end: "10:00",
-          morning_late_end: "11:00",
-          daily_normal_start: "17:00",
-          daily_normal_end: "23:59",
-          daily_late_end: "01:00",
+          morning_normal_start: convertFrom24Hour(5),
+          morning_normal_end: convertFrom24Hour(10),
+          morning_late_end: convertFrom24Hour(11),
+          daily_normal_start: convertFrom24Hour(17),
+          daily_normal_end: convertFrom24Hour(23),
+          daily_late_end: convertFrom24Hour(12),
           min_weekly_count: 4,
           revival_min_morning_count: 3,
           revival_min_daily_count: 3,
           rest_period_weeks: 2,
-          daily_goal_minutes: 20,
-          min_meditation_minutes: 5,
-          start_message: "명상을 시작합니다 🧘‍♀️",
-          end_message: "명상을 종료합니다 ✨ 수고하셨습니다!",
-          declaration_deadline_day: "sun",
-          declaration_deadline_time: 23,
-          declaration_required: true
         }}
       >
-        {/* 챌린지 타입 선택 */}
-        <Card title="챌린지 타입 선택" style={{ marginBottom: 24 }}>
+        {/* 챌린지 카테고리 선택 */}
+        <Card title="챌린지 카테고리 선택" style={{ marginBottom: 24 }}>
           <Form.Item
-            name="type"
-            rules={[{ required: true, message: "챌린지 타입을 선택해주세요" }]}
+            label="챌린지 카테고리"
+            name="challenge_category_id"
+            rules={[{ required: true, message: "챌린지 카테고리를 선택해주세요" }]}
           >
-            <Radio.Group
-              onChange={(e) => setChallengeType(e.target.value)}
-              defaultValue="lifemastery"
-            >
-              <Radio.Button value="lifemastery" style={{ marginRight: 16 }}>
-                🏆 라이프마스터리
-              </Radio.Button>
-              <Radio.Button value="lifemastery-club" style={{ marginRight: 16 }}>
-                🎯 라이프마스터리 클럽
-              </Radio.Button>
-              <Radio.Button value="meditation" style={{ marginRight: 16 }}>
-                🧘 명상 바디더블링
-              </Radio.Button>
-              <Radio.Button value="weekly-planning">
-                📅 위클리 플래닝
-              </Radio.Button>
-            </Radio.Group>
+            <Select
+              placeholder="카테고리를 선택하세요"
+              options={challengeCategories.map((cat: any) => ({
+                label: cat.name || cat.id,
+                value: cat.id,
+              }))}
+              size="large"
+              style={{ width: "100%" }}
+            />
           </Form.Item>
 
-          {challengeType === "lifemastery" && (
-            <Alert
-              message="라이프마스터리 챌린지"
-              description="아침/데일리 인증을 통해 루틴을 만드는 챌린지입니다. #인증 태그로 인증합니다."
-              type="info"
-              showIcon
-              style={{ marginTop: 16 }}
-            />
-          )}
-
-          {challengeType === "lifemastery-club" && (
-            <Alert
-              message="라이프마스터리 클럽"
-              description="라이프마스터리 클럽 전용 챌린지입니다. 기수별로 관리되며, 팀 단위로 운영됩니다."
-              type="info"
-              showIcon
-              style={{ marginTop: 16 }}
-            />
-          )}
-
-          {challengeType === "meditation" && (
-            <Alert
-              message="명상 바디더블링 챌린지"
-              description="#시작으로 명상을 시작하고, #종료로 명상을 종료하는 간단한 인증 방식입니다."
-              type="info"
-              showIcon
-              style={{ marginTop: 16 }}
-            />
-          )}
-
-          {challengeType === "weekly-planning" && (
-            <Alert
-              message="위클리 플래닝 챌린지"
-              description="매주 주간 계획을 선언하는 챌린지입니다. 기상시간, 취침시간, 핵심미션, 이번주 다짐, 월간 프로젝트를 포함합니다."
-              type="info"
-              showIcon
-              style={{ marginTop: 16 }}
-            />
-          )}
         </Card>
 
         {/* 기본 정보 */}
@@ -353,23 +352,20 @@ export const ChallengeCreate = () => {
             <Input placeholder="챌린지명을 입력하세요" />
           </Form.Item>
 
-          {(challengeType === "lifemastery" || challengeType === "lifemastery-club") && (
-            <Form.Item
-              label="기수"
-              name="cardinal_number"
-              rules={[{ required: true, message: "기수를 입력해주세요" }]}
-              help="예: 1, 2, 3... (숫자만 입력 가능) - 필수 입력"
-            >
-              <InputNumber
-                placeholder="기수를 입력하세요 (숫자만)"
-                min={1}
-                max={999}
-                style={{ width: 200 }}
-                addonAfter="기"
-                precision={0}
-              />
-            </Form.Item>
-          )}
+          <Form.Item
+            label="기수"
+            name="cardinal_number"
+            help="예: 1, 2, 3... (숫자만 입력 가능)"
+          >
+            <InputNumber
+              placeholder="기수를 입력하세요 (숫자만)"
+              min={1}
+              max={999}
+              style={{ width: 200 }}
+              addonAfter="기"
+              precision={0}
+            />
+          </Form.Item>
 
           <Form.Item
             label="기간"
@@ -392,338 +388,265 @@ export const ChallengeCreate = () => {
           </Form.Item>
         </Card>
 
-        {/* 라이프마스터리 전용 설정 */}
-        {(challengeType === "lifemastery" || challengeType === "lifemastery-club") && (
-          <>
-            <Card title="☀️ 아침 인증 시간 설정" style={{ marginBottom: 24 }}>
-              <Form.Item
-                label="정상 인증 시작 시간"
-                name="morning_normal_start"
-                help="HH:mm 형식 (예: 05:00)"
-              >
-                <Input placeholder="예: 05:00" style={{ width: 200 }} />
-              </Form.Item>
-
-              <Form.Item
-                label="정상 인증 종료 시간"
-                name="morning_normal_end"
-                help="HH:mm 형식 (예: 10:00)"
-              >
-                <Input placeholder="예: 10:00" style={{ width: 200 }} />
-              </Form.Item>
-
-              <Form.Item
-                label="지각 인증 종료 시간"
-                name="morning_late_end"
-                help="HH:mm 형식 (예: 11:00) - 이 시간까지는 지각으로 인정"
-              >
-                <Input placeholder="예: 11:00" style={{ width: 200 }} />
-              </Form.Item>
-            </Card>
-
-            <Card title="🌙 데일리 인증 시간 설정" style={{ marginBottom: 24 }}>
-              <Form.Item
-                label="정상 인증 시작 시간"
-                name="daily_normal_start"
-                help="HH:mm 형식 (예: 17:00)"
-              >
-                <Input placeholder="예: 17:00" style={{ width: 200 }} />
-              </Form.Item>
-
-              <Form.Item
-                label="정상 인증 종료 시간"
-                name="daily_normal_end"
-                help="HH:mm 형식 (예: 23:59)"
-              >
-                <Input placeholder="예: 23:59" style={{ width: 200 }} />
-              </Form.Item>
-
-              <Form.Item
-                label="지각 인증 종료 시간"
-                name="daily_late_end"
-                help="HH:mm 형식 (예: 01:00) - 익일 새벽까지 지각으로 인정"
-              >
-                <Input placeholder="예: 01:00" style={{ width: 200 }} />
-              </Form.Item>
-            </Card>
-
-            <Card title="⚙️ 인증 정책 설정" style={{ marginBottom: 24 }}>
-              <Form.Item
-                label="리셋방 기능 활성화"
-                name="demotion_enabled"
-                valuePropName="checked"
-                help="리셋방 기능을 활성화하면 주간 최소 인증 횟수 미달 시 리셋방으로 이동합니다"
-              >
-                <Switch />
-              </Form.Item>
-
-              <Divider />
-
-              <Form.Item
-                label="주간 최소 인증 횟수"
-                name="min_weekly_count"
-                help="주간 최소 인증 횟수 미만 시 리셋방으로 이동합니다 (아침+데일리 합산)"
-              >
-                <InputNumber
-                  min={0}
-                  max={14}
-                  placeholder="4"
-                  style={{ width: 200 }}
-                  addonAfter="회"
-                  precision={0}
-                />
-              </Form.Item>
-
-              <Form.Item
-                label="부활 최소 인증 횟수 - 아침"
-                name="revival_min_morning_count"
-                help="리셋방에서 주간 아침 인증 횟수"
-              >
-                <InputNumber
-                  min={0}
-                  max={7}
-                  placeholder="3"
-                  style={{ width: 200 }}
-                  addonAfter="회"
-                  precision={0}
-                />
-              </Form.Item>
-
-              <Form.Item
-                label="부활 최소 인증 횟수 - 데일리"
-                name="revival_min_daily_count"
-                help="리셋방에서 주간 데일리 인증 횟수"
-              >
-                <InputNumber
-                  min={0}
-                  max={7}
-                  placeholder="3"
-                  style={{ width: 200 }}
-                  addonAfter="회"
-                  precision={0}
-                />
-              </Form.Item>
-
-              <Form.Item
-                label="휴식방 강등 기간"
-                name="rest_period_weeks"
-                help="리셋방에서 이 기간 내 미복귀 시 휴식방으로 이동합니다"
-              >
-                <InputNumber
-                  min={1}
-                  max={4}
-                  placeholder="2"
-                  style={{ width: 200 }}
-                  addonAfter="주"
-                  precision={0}
-                />
-              </Form.Item>
-            </Card>
-          </>
-        )}
-
-        {/* 명상 바디더블링 전용 설정 */}
-        {challengeType === "meditation" && (
-          <Card title="🧘 명상 바디더블링 설정" style={{ marginBottom: 24 }}>
-            <Alert
-              message="인증 방법"
-              description={
-                <div>
-                  <p>• <strong>#시작</strong>: 명상을 시작할 때 입력합니다</p>
-                  <p>• <strong>#종료</strong>: 명상을 종료할 때 입력합니다</p>
-                  <p style={{ marginBottom: 0 }}>• 시작과 종료 사이의 시간이 자동으로 기록됩니다</p>
-                </div>
-              }
-              type="info"
-              showIcon
-              style={{ marginBottom: 16 }}
-            />
-
-            <Divider>명상 기본 설정</Divider>
-
-            <Form.Item
-              label="일일 목표 명상 시간 (분)"
-              name="daily_goal_minutes"
-              help="하루 목표 명상 시간을 설정합니다"
-            >
-              <InputNumber
-                min={0}
-                placeholder="20"
-                style={{ width: 200 }}
-                addonAfter="분"
-                precision={0}
-              />
-            </Form.Item>
-
-            <Form.Item
-              label="최소 명상 시간 (분)"
-              name="min_meditation_minutes"
-              help="이 시간 이상 명상해야 인증으로 인정됩니다"
-            >
-              <InputNumber
-                min={1}
-                placeholder="5"
-                style={{ width: 200 }}
-                addonAfter="분"
-                precision={0}
-              />
-            </Form.Item>
-
-            <Divider>메시지 템플릿</Divider>
-
-            <Form.Item
-              label="#시작 메시지"
-              name="start_message"
-              help="사용자가 #시작을 입력했을 때 자동으로 전송되는 메시지"
-            >
-              <TextArea
-                rows={3}
-                placeholder="명상을 시작합니다 🧘‍♀️"
-              />
-            </Form.Item>
-
-            <Form.Item
-              label="#종료 메시지"
-              name="end_message"
-              help="사용자가 #종료를 입력했을 때 자동으로 전송되는 메시지"
-            >
-              <TextArea
-                rows={3}
-                placeholder="명상을 종료합니다 ✨ 수고하셨습니다!"
-              />
-            </Form.Item>
-          </Card>
-        )}
-
-        {/* 위클리 플래닝 전용 설정 */}
-        {challengeType === "weekly-planning" && (
-          <Card title="📅 위클리 플래닝 설정" style={{ marginBottom: 24 }}>
-            <Alert
-              message="선언 양식"
-              description={
-                <div>
-                  <p>• <strong>기상시간</strong>: 매일 목표 기상시간</p>
-                  <p>• <strong>취침시간</strong>: 매일 목표 취침시간</p>
-                  <p>• <strong>핵심미션</strong>: 이번 주 핵심 미션</p>
-                  <p>• <strong>이번주 다짐</strong>: 주간 다짐 한마디</p>
-                  <p style={{ marginBottom: 0 }}>• <strong>N월 프로젝트</strong>: 월간 프로젝트 목표</p>
-                </div>
-              }
-              type="info"
-              showIcon
-              style={{ marginBottom: 16 }}
-            />
-
-            <Divider>선언 마감 설정</Divider>
-
-            <Form.Item
-              label="선언 마감 요일"
-              name="declaration_deadline_day"
-              help="매주 이 요일까지 선언을 완료해야 합니다"
-            >
-              <Radio.Group>
-                <Radio value="sun">일요일</Radio>
-                <Radio value="mon">월요일</Radio>
-              </Radio.Group>
-            </Form.Item>
-
-            <Form.Item
-              label="선언 마감 시간"
-              name="declaration_deadline_time"
-              help="마감 요일의 몇 시까지 선언해야 하는지 설정합니다"
-            >
-              <InputNumber
-                min={0}
-                max={23}
-                placeholder="23"
-                style={{ width: 200 }}
-                addonAfter="시"
-                precision={0}
-              />
-            </Form.Item>
-
-            <Form.Item
-              label="선언 필수 여부"
-              name="declaration_required"
-              valuePropName="checked"
-              help="필수 선택 시 미선언자는 별도 알림을 받습니다"
-            >
-              <Switch checkedChildren="필수" unCheckedChildren="선택" />
-            </Form.Item>
-          </Card>
-        )}
-
-        {/* 디스코드 설정 */}
-        <Card title="디스코드 설정" style={{ marginBottom: 24 }}>
+        {/* 아침 인증 시간 설정 */}
+        <Card title="☀️ 아침 인증 시간 설정" style={{ marginBottom: 24 }}>
           <Form.Item
-            label="챌린지 카테고리"
-            name="category_id"
-            help="챌린지 카테고리를 선택하세요 (선택사항)"
+            label="정상 인증 시작 시간"
+            name="morning_normal_start"
           >
-            <Select
-              placeholder="카테고리를 선택하세요"
-              options={challengeCategories.map((cat: any) => ({
-                label: cat.name || cat.id,
-                value: cat.id,
-              }))}
-              allowClear
-            />
+            <TimeSelector />
+          </Form.Item>
+
+          <Form.Item
+            label="정상 인증 종료 시간"
+            name="morning_normal_end"
+          >
+            <TimeSelector />
+          </Form.Item>
+
+          <Form.Item
+            label="지각 인증 종료 시간"
+            name="morning_late_end"
+            help="이 시간까지는 지각으로 인정"
+          >
+            <TimeSelector />
+          </Form.Item>
+        </Card>
+
+        {/* 데일리 인증 시간 설정 */}
+        <Card title="🌙 데일리 인증 시간 설정" style={{ marginBottom: 24 }}>
+          <Form.Item
+            label="정상 인증 시작 시간"
+            name="daily_normal_start"
+          >
+            <TimeSelector />
+          </Form.Item>
+
+          <Form.Item
+            label="정상 인증 종료 시간"
+            name="daily_normal_end"
+          >
+            <TimeSelector />
+          </Form.Item>
+
+          <Form.Item
+            label="지각 인증 종료 시간"
+            name="daily_late_end"
+            help="익일 새벽까지 지각으로 인정"
+          >
+            <TimeSelector />
+          </Form.Item>
+        </Card>
+
+        {/* 인증 정책 설정 */}
+        <Card title="⚙️ 인증 정책 설정" style={{ marginBottom: 24 }}>
+          <Form.Item
+            label="리셋방 기능 활성화"
+            name="demotion_enabled"
+            valuePropName="checked"
+            help="리셋방 기능을 활성화하면 주간 최소 인증 횟수 미달 시 리셋방으로 이동합니다"
+          >
+            <Switch />
           </Form.Item>
 
           <Divider />
 
+          <Form.Item
+            label="주간 최소 인증 횟수"
+            name="min_weekly_count"
+            help="주간 최소 인증 횟수 미만 시 리셋방으로 이동합니다 (아침+데일리 합산)"
+          >
+            <InputNumber
+              min={0}
+              max={14}
+              placeholder="4"
+              style={{ width: 200 }}
+              addonAfter="회"
+              precision={0}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="부활 최소 인증 횟수 - 아침"
+            name="revival_min_morning_count"
+            help="리셋방에서 주간 아침 인증 횟수"
+          >
+            <InputNumber
+              min={0}
+              max={7}
+              placeholder="3"
+              style={{ width: 200 }}
+              addonAfter="회"
+              precision={0}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="부활 최소 인증 횟수 - 데일리"
+            name="revival_min_daily_count"
+            help="리셋방에서 주간 데일리 인증 횟수"
+          >
+            <InputNumber
+              min={0}
+              max={7}
+              placeholder="3"
+              style={{ width: 200 }}
+              addonAfter="회"
+              precision={0}
+            />
+          </Form.Item>
+
+          <Form.Item
+            label="휴식방 강등 기간"
+            name="rest_period_weeks"
+            help="리셋방에서 이 기간 내 미복귀 시 휴식방으로 이동합니다"
+          >
+            <InputNumber
+              min={1}
+              max={4}
+              placeholder="2"
+              style={{ width: 200 }}
+              addonAfter="주"
+              precision={0}
+            />
+          </Form.Item>
+        </Card>
+
+        {/* 채널 관리 */}
+        <Card title="채널 관리" style={{ marginBottom: 24 }}>
           <Alert
-            message="Discord 설정"
-            description="먼저 길드(서버)를 선택한 후 해당 길드의 카테고리를 선택할 수 있습니다."
+            message="채널 설정"
+            description="챌린지와 연결할 Discord 채널을 추가하세요. 챌린지 저장 시 Discord에 채널이 생성됩니다."
             type="info"
             showIcon
             style={{ marginBottom: 16 }}
           />
 
-          <Form.Item label="Discord 길드 (서버)">
-            <Select
-              placeholder="길드를 선택하세요"
-              onChange={handleGuildChange}
-              value={selectedGuildId}
-              options={guilds.map((guild) => ({
-                label: `${guild.name} (멤버: ${guild.member_count}명)`,
-                value: guild.id,
-              }))}
-              allowClear
-            />
-          </Form.Item>
-
-          <Form.Item
-            label="Discord 카테고리 ID"
-            name="discord_category_id"
-            help="Discord 카테고리 ID (선택사항)"
+          <Button
+            type="dashed"
+            icon={<PlusOutlined />}
+            onClick={() => {
+              fetchGuilds();
+              setIsChannelModalOpen(true);
+            }}
+            style={{ marginBottom: 16 }}
           >
-            <Select
-              placeholder="카테고리를 선택하세요"
-              disabled={!selectedGuildId}
-              options={categories.map((category) => ({
-                label: category.name,
-                value: category.id,
-              }))}
-            />
-          </Form.Item>
+            채널 추가
+          </Button>
 
-          <Form.Item
-            label="디스코드 채널 ID"
-            name="channel_id"
-            help="특정 채널 ID를 입력하거나 비워두세요"
-          >
-            <Input placeholder="디스코드 채널 ID를 입력하세요 (선택사항)" />
-          </Form.Item>
+          {channelsToCreate.length > 0 && (
+            <Table
+              dataSource={channelsToCreate}
+              rowKey="id"
+              pagination={false}
+              size="small"
+            >
+              <Table.Column dataIndex="name" title="채널명" />
+              <Table.Column dataIndex="type" title="타입" />
+              <Table.Column
+                dataIndex="demotion_enabled"
+                title="리셋방"
+                render={(v) => (v ? "O" : "-")}
+              />
+              <Table.Column
+                title="작업"
+                render={(_, record: any) => (
+                  <Button
+                    danger
+                    size="small"
+                    icon={<DeleteOutlined />}
+                    onClick={() => handleRemoveChannelFromList(record.id)}
+                  />
+                )}
+              />
+            </Table>
+          )}
 
-          <Form.Item
-            label="디스코드 역할 ID"
-            name="role_id"
-            help="이 챌린지와 연결할 역할 ID (선택사항)"
-          >
-            <Input placeholder="디스코드 역할 ID를 입력하세요 (선택사항)" />
-          </Form.Item>
+          {channelsToCreate.length === 0 && (
+            <div style={{ color: "#888", textAlign: "center", padding: 20 }}>
+              추가된 채널이 없습니다. 채널 추가 버튼을 눌러 채널을 추가하세요.
+            </div>
+          )}
         </Card>
+
+        {/* 채널 추가 Modal */}
+        <Modal
+          title="채널 추가"
+          open={isChannelModalOpen}
+          onOk={handleAddChannelToList}
+          onCancel={() => {
+            setIsChannelModalOpen(false);
+            channelForm.resetFields();
+            setSelectedGuildId("");
+            setDiscordCategories([]);
+          }}
+          okText="추가"
+          cancelText="취소"
+        >
+          <Form form={channelForm} layout="vertical">
+            <Form.Item label="Discord 길드 (서버)">
+              <Select
+                placeholder="길드를 선택하세요"
+                onChange={handleGuildChange}
+                value={selectedGuildId}
+                options={guilds.map((guild) => ({
+                  label: `${guild.name} (멤버: ${guild.member_count}명)`,
+                  value: guild.id,
+                }))}
+              />
+            </Form.Item>
+            <Form.Item
+              name="parent_id"
+              label="Discord 카테고리"
+            >
+              <Select
+                placeholder="카테고리를 선택하세요 (선택사항)"
+                disabled={!selectedGuildId}
+                allowClear
+                options={discordCategories.map((category) => ({
+                  label: category.name,
+                  value: category.id,
+                }))}
+              />
+            </Form.Item>
+            <Form.Item
+              name="name"
+              label="채널명"
+              rules={[{ required: true, message: "채널명을 입력하세요" }]}
+            >
+              <Input placeholder="채널명을 입력하세요" />
+            </Form.Item>
+            <Form.Item
+              name="type"
+              label="채널 타입"
+              initialValue="text"
+            >
+              <Select
+                options={[
+                  { label: "텍스트 채널", value: "text" },
+                  { label: "음성 채널", value: "voice" },
+                  { label: "공지 채널", value: "announcement" },
+                ]}
+              />
+            </Form.Item>
+            <Form.Item
+              name="is_private"
+              label="비공개 채널"
+              valuePropName="checked"
+              initialValue={false}
+            >
+              <Switch />
+            </Form.Item>
+            <Form.Item
+              name="demotion_enabled"
+              label="리셋방 기능"
+              valuePropName="checked"
+              initialValue={false}
+            >
+              <Switch />
+            </Form.Item>
+          </Form>
+        </Modal>
       </Form>
     </Create>
   );

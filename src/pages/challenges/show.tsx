@@ -51,10 +51,13 @@ export const ChallengeShow = () => {
   const { list } = useNavigation();
 
   const [isChannelModalOpen, setIsChannelModalOpen] = useState(false);
+  const [isEditChannelModalOpen, setIsEditChannelModalOpen] = useState(false);
+  const [editingChannel, setEditingChannel] = useState<any>(null);
   const [guilds, setGuilds] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [selectedGuildId, setSelectedGuildId] = useState<string>("");
   const [channelForm] = Form.useForm();
+  const [editChannelForm] = Form.useForm();
 
   // 인증 설정 로컬 상태
   const [demotionEnabled, setDemotionEnabled] = useState<boolean>(false);
@@ -62,6 +65,7 @@ export const ChallengeShow = () => {
 
   const { mutate: createChannel } = useCreate();
   const { mutate: deleteChannel } = useDelete();
+  const { mutate: updateChannel } = useUpdate();
   const { mutate: updateChallenge } = useUpdate();
   const { mutate: deleteChallenge } = useDelete();
   const { mutate: updatePolicy } = useUpdate();
@@ -83,11 +87,21 @@ export const ChallengeShow = () => {
     }
   }, [demotionEnabled, record]);
 
-  // 채널 데이터 가져오기
+  // 채널 데이터 가져오기 (현재 챌린지에 연결된 채널만)
   const { data: channelsData, refetch: refetchChannels } = useList({
     resource: "channels",
+    filters: [
+      {
+        field: "challenge_id",
+        operator: "eq",
+        value: record?.id,
+      },
+    ],
     pagination: {
       mode: "off",
+    },
+    queryOptions: {
+      enabled: !!record?.id,
     },
   });
 
@@ -282,53 +296,83 @@ export const ChallengeShow = () => {
     channelForm.setFieldsValue({ parent_id: undefined });
   };
 
-  // 채널 추가
+  // 채널 추가 (DB에 저장)
   const handleAddChannel = async () => {
     try {
       const values = await channelForm.validateFields();
 
-      // Discord API를 통해 채널 생성
-      const response = await fetch(`http://146.56.158.19/api/admin/discord/guilds/${selectedGuildId}/channels`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+      // DB에 채널 저장 (challenge_id 연결)
+      createChannel(
+        {
+          resource: "channels",
+          values: {
+            name: values.name,
+            channel_id: values.channel_id || "",
+            guild_id: selectedGuildId,
+            type: values.type || "text",
+            parent_id: values.parent_id || "",
+            topic: values.topic || "",
+            owner_id: values.owner_id || "",
+            is_private: values.is_private || false,
+            is_active: true,
+            demotion_enabled: values.demotion_enabled || false,
+            challenge_id: record?.id, // 현재 챌린지와 연결
+          },
         },
-        body: JSON.stringify({
-          name: values.name,
-          type: values.type || 0,
-          parent_id: values.parent_id,
-          topic: values.topic,
-          owner_id: values.owner_id,
-          is_private: values.is_private || false,
-        }),
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        message.success("채널이 생성되었습니다.");
-        setIsChannelModalOpen(false);
-        channelForm.resetFields();
-        setSelectedGuildId("");
-        setCategories([]);
-        refetchChannels();
-      } else {
-        message.error("채널 생성에 실패했습니다.");
-      }
+        {
+          onSuccess: () => {
+            message.success("채널이 추가되었습니다.");
+            setIsChannelModalOpen(false);
+            channelForm.resetFields();
+            setSelectedGuildId("");
+            setCategories([]);
+            refetchChannels();
+          },
+          onError: (error: any) => {
+            console.error("채널 추가 실패:", error);
+            message.error("채널 추가에 실패했습니다.");
+          },
+        }
+      );
     } catch (error) {
-      message.error("채널 생성 중 오류가 발생했습니다.");
+      message.error("채널 추가 중 오류가 발생했습니다.");
     }
   };
 
-  // 채널 삭제
+  // 채널 삭제 (Discord + DB)
   const handleDeleteChannel = (id: string) => {
+    // 삭제할 채널 정보 찾기
+    const channelToDelete = channels.find((ch: any) => ch.id === id);
+
     Modal.confirm({
       title: "채널을 삭제하시겠습니까?",
-      content: "해당 작업은 되돌릴 수 없습니다.",
+      content: "Discord 채널과 DB 데이터가 모두 삭제됩니다. 이 작업은 되돌릴 수 없습니다.",
       okText: "삭제",
       okType: "danger",
       cancelText: "취소",
-      onOk: () => {
+      onOk: async () => {
+        // 1. Discord에서 채널 삭제
+        if (channelToDelete?.channel_id) {
+          try {
+            message.loading("Discord 채널 삭제 중...", 0);
+            const response = await fetch(
+              `http://146.56.158.19/api/admin/discord/channels/${channelToDelete.channel_id}`,
+              { method: "DELETE" }
+            );
+            message.destroy();
+
+            const result = await response.json();
+            if (!result.success) {
+              message.warning("Discord 채널 삭제에 실패했습니다. DB에서만 삭제합니다.");
+            }
+          } catch (error) {
+            message.destroy();
+            console.error("Discord 채널 삭제 에러:", error);
+            message.warning("Discord 채널 삭제 중 오류가 발생했습니다. DB에서만 삭제합니다.");
+          }
+        }
+
+        // 2. DB에서 채널 삭제
         deleteChannel(
           {
             resource: "channels",
@@ -339,10 +383,67 @@ export const ChallengeShow = () => {
               message.success("채널이 삭제되었습니다.");
               refetchChannels();
             },
+            onError: (error: any) => {
+              console.error("DB 채널 삭제 실패:", error);
+              message.error("DB에서 채널 삭제에 실패했습니다.");
+            },
           }
         );
       },
     });
+  };
+
+  // 채널 수정 Modal 열기
+  const handleEditChannel = (channel: any) => {
+    setEditingChannel(channel);
+    editChannelForm.setFieldsValue({
+      channel_id: channel.channel_id,
+      name: channel.name,
+      type: channel.type || "text",
+      topic: channel.topic,
+      is_private: channel.is_private,
+      is_active: channel.is_active,
+      demotion_enabled: channel.demotion_enabled,
+    });
+    setIsEditChannelModalOpen(true);
+  };
+
+  // 채널 수정 저장
+  const handleUpdateChannel = async () => {
+    try {
+      const values = await editChannelForm.validateFields();
+
+      updateChannel(
+        {
+          resource: "channels",
+          id: editingChannel?.id,
+          values: {
+            channel_id: values.channel_id,
+            name: values.name,
+            type: values.type,
+            topic: values.topic || "",
+            is_private: values.is_private || false,
+            is_active: values.is_active !== undefined ? values.is_active : true,
+            demotion_enabled: values.demotion_enabled || false,
+          },
+        },
+        {
+          onSuccess: () => {
+            message.success("채널이 수정되었습니다.");
+            setIsEditChannelModalOpen(false);
+            setEditingChannel(null);
+            editChannelForm.resetFields();
+            refetchChannels();
+          },
+          onError: (error: any) => {
+            console.error("채널 수정 실패:", error);
+            message.error("채널 수정에 실패했습니다.");
+          },
+        }
+      );
+    } catch (error) {
+      message.error("채널 수정 중 오류가 발생했습니다.");
+    }
   };
 
   // 리셋방 on/off 토글 (로컬 상태만 변경)
@@ -666,19 +767,30 @@ export const ChallengeShow = () => {
                     />
                     <Table.Column
                       title="작업"
-                      width={80}
-                      render={(_, record: any) => (
-                        <Button
-                          danger
-                          size="small"
-                          icon={<DeleteOutlined />}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteChannel(record.id);
-                          }}
-                        >
-                          삭제
-                        </Button>
+                      width={150}
+                      render={(_, channelRecord: any) => (
+                        <Space>
+                          <Button
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditChannel(channelRecord);
+                            }}
+                          >
+                            수정
+                          </Button>
+                          <Button
+                            danger
+                            size="small"
+                            icon={<DeleteOutlined />}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteChannel(channelRecord.id);
+                            }}
+                          >
+                            삭제
+                          </Button>
+                        </Space>
                       )}
                     />
                   </Table>
@@ -715,7 +827,7 @@ export const ChallengeShow = () => {
                 </Card>
 
                 <Modal
-                  title="채널 생성"
+                  title="채널 추가"
                   open={isChannelModalOpen}
                   onOk={handleAddChannel}
                   onCancel={() => {
@@ -724,7 +836,7 @@ export const ChallengeShow = () => {
                     setSelectedGuildId("");
                     setCategories([]);
                   }}
-                  okText="생성"
+                  okText="추가"
                   cancelText="취소"
                   afterOpenChange={(open) => {
                     if (open) {
@@ -749,17 +861,24 @@ export const ChallengeShow = () => {
                     </Form.Item>
                     <Form.Item
                       name="parent_id"
-                      label="카테고리"
-                      rules={[{ required: true, message: "카테고리를 선택하세요" }]}
+                      label="Discord 카테고리"
                     >
                       <Select
-                        placeholder="카테고리를 선택하세요"
+                        placeholder="카테고리를 선택하세요 (선택사항)"
                         disabled={!selectedGuildId}
+                        allowClear
                         options={categories.map((category) => ({
                           label: category.name,
                           value: category.id,
                         }))}
                       />
+                    </Form.Item>
+                    <Form.Item
+                      name="channel_id"
+                      label="Discord 채널 ID"
+                      rules={[{ required: true, message: "채널 ID를 입력하세요" }]}
+                    >
+                      <Input placeholder="Discord 채널 ID를 입력하세요" />
                     </Form.Item>
                     <Form.Item
                       name="name"
@@ -771,14 +890,13 @@ export const ChallengeShow = () => {
                     <Form.Item
                       name="type"
                       label="채널 타입"
-                      initialValue={0}
+                      initialValue="text"
                     >
                       <Select
                         options={[
-                          { label: "텍스트 채널", value: 0 },
-                          { label: "음성 채널", value: 2 },
-                          { label: "카테고리", value: 4 },
-                          { label: "공지 채널", value: 5 },
+                          { label: "텍스트 채널", value: "text" },
+                          { label: "음성 채널", value: "voice" },
+                          { label: "공지 채널", value: "announcement" },
                         ]}
                       />
                     </Form.Item>
@@ -789,16 +907,88 @@ export const ChallengeShow = () => {
                       <Input.TextArea placeholder="채널 설명 (선택사항)" rows={2} />
                     </Form.Item>
                     <Form.Item
-                      name="owner_id"
-                      label="소유자 Discord ID"
+                      name="is_private"
+                      label="비공개 채널"
+                      valuePropName="checked"
+                      initialValue={false}
                     >
-                      <Input placeholder="소유자의 Discord ID (선택사항)" />
+                      <Switch />
+                    </Form.Item>
+                    <Form.Item
+                      name="demotion_enabled"
+                      label="리셋방 기능"
+                      valuePropName="checked"
+                      initialValue={false}
+                    >
+                      <Switch />
+                    </Form.Item>
+                  </Form>
+                </Modal>
+
+                {/* 채널 수정 Modal */}
+                <Modal
+                  title="채널 수정"
+                  open={isEditChannelModalOpen}
+                  onOk={handleUpdateChannel}
+                  onCancel={() => {
+                    setIsEditChannelModalOpen(false);
+                    setEditingChannel(null);
+                    editChannelForm.resetFields();
+                  }}
+                  okText="저장"
+                  cancelText="취소"
+                >
+                  <Form form={editChannelForm} layout="vertical">
+                    <Form.Item
+                      name="channel_id"
+                      label="Discord 채널 ID"
+                      rules={[{ required: true, message: "채널 ID를 입력하세요" }]}
+                    >
+                      <Input placeholder="Discord 채널 ID" />
+                    </Form.Item>
+                    <Form.Item
+                      name="name"
+                      label="채널명"
+                      rules={[{ required: true, message: "채널명을 입력하세요" }]}
+                    >
+                      <Input placeholder="채널명" />
+                    </Form.Item>
+                    <Form.Item
+                      name="type"
+                      label="채널 타입"
+                    >
+                      <Select
+                        options={[
+                          { label: "텍스트 채널", value: "text" },
+                          { label: "음성 채널", value: "voice" },
+                          { label: "공지 채널", value: "announcement" },
+                        ]}
+                      />
+                    </Form.Item>
+                    <Form.Item
+                      name="topic"
+                      label="채널 설명"
+                    >
+                      <Input.TextArea placeholder="채널 설명 (선택사항)" rows={2} />
                     </Form.Item>
                     <Form.Item
                       name="is_private"
                       label="비공개 채널"
                       valuePropName="checked"
-                      initialValue={false}
+                    >
+                      <Switch />
+                    </Form.Item>
+                    <Form.Item
+                      name="is_active"
+                      label="활성 상태"
+                      valuePropName="checked"
+                    >
+                      <Switch checkedChildren="활성" unCheckedChildren="비활성" />
+                    </Form.Item>
+                    <Form.Item
+                      name="demotion_enabled"
+                      label="리셋방 기능"
+                      valuePropName="checked"
                     >
                       <Switch />
                     </Form.Item>
