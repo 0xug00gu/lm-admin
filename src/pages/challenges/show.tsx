@@ -622,9 +622,14 @@ export const ChallengeShow = () => {
       });
 
       setChannelMembers(result);
-    } catch (error) {
+    } catch (error: any) {
       console.error("멤버 목록 가져오기 실패:", error);
-      message.error("멤버 목록을 가져오는데 실패했습니다.");
+      // 403 에러인 경우 API Rules 안내
+      if (error?.status === 403) {
+        message.error("권한이 없습니다. PocketBase Admin에서 channel_members 컬렉션의 API Rules를 설정하세요.");
+      } else {
+        message.error("멤버 목록을 가져오는데 실패했습니다.");
+      }
       setChannelMembers([]);
     } finally {
       setLoadingMembers(false);

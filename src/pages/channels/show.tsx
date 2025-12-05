@@ -1,8 +1,8 @@
 import { Show, useTable } from "@refinedev/antd";
 import { useShow, useList } from "@refinedev/core";
-import { Descriptions, Tag, Tabs, Table, Button, Space, Modal, Form, Select, message } from "antd";
+import { Descriptions, Tag, Tabs, Table, Button, Space, Modal, Form, Select, message, Spin } from "antd";
 import { PlusOutlined, DeleteOutlined, UserOutlined, InfoCircleOutlined } from "@ant-design/icons";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { api } from "../../config/env";
 
 export const ChannelShow = () => {
@@ -27,7 +27,7 @@ export const ChannelShow = () => {
 
   const allUsers = usersData?.data || [];
 
-  // 채널 멤버 목록 가져오기
+  // 채널 멤버 목록 가져오기 - record가 로드된 후에만 쿼리 실행
   const { tableProps: membersTableProps, tableQueryResult: membersQueryResult } = useTable({
     resource: "channel_members",
     filters: {
@@ -35,7 +35,7 @@ export const ChannelShow = () => {
         {
           field: "channel_id",
           operator: "eq",
-          value: record?.id,
+          value: record?.id || "",
         },
       ],
     },
@@ -43,7 +43,17 @@ export const ChannelShow = () => {
       expand: "discord_user_id",
     },
     syncWithLocation: false,
+    queryOptions: {
+      enabled: !!record?.id, // record가 로드된 후에만 쿼리 실행
+    },
   });
+
+  // record가 로드되면 멤버 목록 다시 가져오기
+  useEffect(() => {
+    if (record?.id) {
+      membersQueryResult.refetch();
+    }
+  }, [record?.id]);
 
   const members = membersTableProps.dataSource || [];
 
@@ -192,8 +202,20 @@ export const ChannelShow = () => {
                   >
                     유저 추가
                   </Button>
+                  {membersQueryResult.isLoading && <Spin size="small" />}
+                  {membersQueryResult.isError && (
+                    <span style={{ color: "red", marginLeft: 8 }}>
+                      멤버 목록을 불러오는데 실패했습니다. PocketBase API Rules를 확인하세요.
+                    </span>
+                  )}
                 </Space>
-                <Table {...membersTableProps} rowKey="id" pagination={false}>
+                <Table
+                  {...membersTableProps}
+                  rowKey="id"
+                  pagination={false}
+                  loading={membersQueryResult.isLoading || !record?.id}
+                  locale={{ emptyText: membersQueryResult.isError ? "멤버 목록을 불러올 수 없습니다" : "등록된 멤버가 없습니다" }}
+                >
                   <Table.Column
                     dataIndex={["expand", "discord_user_id", "name"]}
                     title="이름"
