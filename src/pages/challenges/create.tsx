@@ -191,7 +191,7 @@ export const ChallengeCreate = () => {
     isSubmitting.current = true;
 
     try {
-      const pb = getPocketBaseInstance();
+      const pb = await getPocketBaseInstance();
       if (!pb) {
         message.error("DB 연결에 실패했습니다.");
         isSubmitting.current = false;

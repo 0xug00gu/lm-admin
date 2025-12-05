@@ -72,7 +72,7 @@ export const SystemChannelList = () => {
 
     setLoading(true);
     try {
-      const pb = getPocketBaseInstance();
+      const pb = await getPocketBaseInstance();
       if (!pb) {
         message.error("DB 연결에 실패했습니다.");
         setLoading(false);
@@ -150,7 +150,7 @@ export const SystemChannelList = () => {
         return;
       }
 
-      const pb = getPocketBaseInstance();
+      const pb = await getPocketBaseInstance();
       if (!pb) {
         message.error("DB 연결에 실패했습니다.");
         setCreateLoading(false);
@@ -195,7 +195,7 @@ export const SystemChannelList = () => {
     try {
       const values = await editForm.validateFields();
 
-      const pb = getPocketBaseInstance();
+      const pb = await getPocketBaseInstance();
       if (!pb) {
         message.error("DB 연결에 실패했습니다.");
         return;
@@ -235,7 +235,7 @@ export const SystemChannelList = () => {
       okType: "danger",
       cancelText: "취소",
       onOk: async () => {
-        const pb = getPocketBaseInstance();
+        const pb = await getPocketBaseInstance();
         if (!pb) {
           message.error("DB 연결에 실패했습니다.");
           return;

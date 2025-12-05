@@ -5,9 +5,43 @@ import PocketBase from "pocketbase";
 let pbInstance: PocketBase | null = null;
 let isAuthenticating = false;
 let authPromise: Promise<void> | null = null;
+let savedCredentials: { email: string; password: string } | null = null;
 
-// Export function to get PocketBase instance
-export const getPocketBaseInstance = (): PocketBase | null => {
+// Export function to get PocketBase instance (with auth) - async version
+export const getPocketBaseInstance = async (): Promise<PocketBase | null> => {
+  if (!pbInstance) return null;
+
+  // 이미 인증됨
+  if (pbInstance.authStore.isValid) {
+    return pbInstance;
+  }
+
+  // 인증 진행 중이면 대기
+  if (isAuthenticating && authPromise) {
+    await authPromise;
+    return pbInstance;
+  }
+
+  // 인증 시도
+  if (savedCredentials?.email && savedCredentials?.password) {
+    isAuthenticating = true;
+    authPromise = (async () => {
+      try {
+        await pbInstance!.admins.authWithPassword(savedCredentials!.email, savedCredentials!.password);
+      } catch (error) {
+        console.error("PocketBase auth failed:", error);
+      } finally {
+        isAuthenticating = false;
+      }
+    })();
+    await authPromise;
+  }
+
+  return pbInstance;
+};
+
+// Sync version (for backwards compatibility, but may not be authenticated)
+export const getPocketBaseInstanceSync = (): PocketBase | null => {
   return pbInstance;
 };
 
@@ -21,6 +55,11 @@ export const pocketbaseDataProvider = (
     pbInstance = new PocketBase(apiUrl);
   }
   const pb = pbInstance;
+
+  // Save credentials for later use
+  if (email && password) {
+    savedCredentials = { email, password };
+  }
 
   // Auto-login as admin if credentials provided
   const ensureAuth = async () => {

@@ -302,7 +302,7 @@ export const ChallengeShow = () => {
         return;
       }
 
-      const pb = getPocketBaseInstance();
+      const pb = await getPocketBaseInstance();
       if (!pb) {
         message.error("DB 연결에 실패했습니다.");
         return;
@@ -537,7 +537,7 @@ export const ChallengeShow = () => {
       okType: "danger",
       cancelText: "취소",
       onOk: async () => {
-        const pb = getPocketBaseInstance();
+        const pb = await getPocketBaseInstance();
         if (!pb) {
           message.error("DB 연결에 실패했습니다.");
           return;
@@ -600,7 +600,7 @@ export const ChallengeShow = () => {
 
     setLoadingMembers(true);
     try {
-      const pb = getPocketBaseInstance();
+      const pb = await getPocketBaseInstance();
       if (!pb) {
         message.error("DB 연결에 실패했습니다.");
         setLoadingMembers(false);
@@ -645,7 +645,7 @@ export const ChallengeShow = () => {
         return;
       }
 
-      const pb = getPocketBaseInstance();
+      const pb = await getPocketBaseInstance();
       if (!pb) {
         message.error("DB 연결에 실패했습니다.");
         return;
@@ -689,7 +689,7 @@ export const ChallengeShow = () => {
       okType: "danger",
       cancelText: "취소",
       onOk: async () => {
-        const pb = getPocketBaseInstance();
+        const pb = await getPocketBaseInstance();
         if (!pb) {
           message.error("DB 연결에 실패했습니다.");
           return;
