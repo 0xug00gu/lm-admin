@@ -36,6 +36,10 @@ export const api = {
     guilds: () => `${config.apiBaseUrl}/api/admin/discord/guilds`,
     guildCategories: (guildId: string) =>
       `${config.apiBaseUrl}/api/admin/discord/guilds/${guildId}/categories`,
+    guildMembers: (guildId: string) =>
+      `${config.apiBaseUrl}/api/admin/discord/guilds/${guildId}/members`,
+    syncMembers: (guildId: string) =>
+      `${config.apiBaseUrl}/api/admin/discord/guilds/${guildId}/sync-members`,
     channelMembers: (channelId: string) =>
       `${config.apiBaseUrl}/api/admin/discord/channels/${channelId}/members`,
     channelMember: (channelId: string, discordId: string) =>

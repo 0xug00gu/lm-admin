@@ -1,20 +1,96 @@
 import { List, useTable } from "@refinedev/antd";
-import { Table, Input, Space, Button, Select, Tag } from "antd";
-import { SearchOutlined, DownloadOutlined } from "@ant-design/icons";
-import { useState } from "react";
+import { Table, Input, Space, Button, Select, Tag, message, Modal } from "antd";
+import { SearchOutlined, DownloadOutlined, SyncOutlined, ReloadOutlined } from "@ant-design/icons";
+import { useState, useEffect } from "react";
 import * as XLSX from "xlsx";
+import { api } from "../../config/env";
 
 export const UserList = () => {
   const [searchField, setSearchField] = useState("name");
   const [searchValue, setSearchValue] = useState("");
+  const [syncLoading, setSyncLoading] = useState(false);
+  const [guilds, setGuilds] = useState<any[]>([]);
+  const [selectedGuildId, setSelectedGuildId] = useState<string>("");
 
-  const { tableProps } = useTable({
+  const { tableProps, tableQueryResult } = useTable({
     resource: "discord_users",
     syncWithLocation: true,
     meta: {
       expand: "programs",
     },
   });
+
+  // 길드 목록 가져오기
+  useEffect(() => {
+    fetchGuilds();
+  }, []);
+
+  const fetchGuilds = async () => {
+    try {
+      const response = await fetch(api.discord.guilds());
+      const result = await response.json();
+      if (result.success && result.data.length > 0) {
+        setGuilds(result.data);
+        setSelectedGuildId(result.data[0].id);
+      }
+    } catch (error) {
+      console.error("길드 목록 가져오기 실패:", error);
+    }
+  };
+
+  // 테이블 새로고침
+  const handleRefresh = () => {
+    tableQueryResult.refetch();
+    message.success("목록을 새로고침했습니다.");
+  };
+
+  // Discord에서 사용자 동기화
+  const handleSyncUsers = async () => {
+    if (!selectedGuildId) {
+      message.warning("길드를 선택해주세요.");
+      return;
+    }
+
+    Modal.confirm({
+      title: "Discord 사용자 동기화",
+      content: (
+        <div>
+          <p>Discord 서버에서 사용자 목록을 가져와 동기화합니다.</p>
+          <p style={{ color: "#888", fontSize: 12 }}>
+            이 작업은 시간이 걸릴 수 있습니다.
+          </p>
+        </div>
+      ),
+      okText: "동기화",
+      cancelText: "취소",
+      onOk: async () => {
+        setSyncLoading(true);
+        try {
+          const response = await fetch(api.discord.syncMembers(selectedGuildId), {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          });
+
+          const result = await response.json();
+
+          if (result.success) {
+            message.success(`${result.data?.synced || 0}명의 사용자가 동기화되었습니다.`);
+            // 테이블 새로고침
+            tableQueryResult.refetch();
+          } else {
+            message.error(result.message || "동기화에 실패했습니다.");
+          }
+        } catch (error) {
+          console.error("사용자 동기화 실패:", error);
+          message.error("사용자 동기화 중 오류가 발생했습니다.");
+        } finally {
+          setSyncLoading(false);
+        }
+      },
+    });
+  };
 
   // 엑셀 다운로드 함수
   const handleExcelDownload = () => {
@@ -67,6 +143,29 @@ export const UserList = () => {
       headerButtons={({ defaultButtons }) => (
         <>
           {defaultButtons}
+          <Select
+            placeholder="길드 선택"
+            style={{ width: 200 }}
+            value={selectedGuildId}
+            onChange={setSelectedGuildId}
+            options={guilds.map((guild) => ({
+              label: guild.name,
+              value: guild.id,
+            }))}
+          />
+          <Button
+            icon={<SyncOutlined spin={syncLoading} />}
+            onClick={handleSyncUsers}
+            loading={syncLoading}
+          >
+            Discord 동기화
+          </Button>
+          <Button
+            icon={<ReloadOutlined />}
+            onClick={handleRefresh}
+          >
+            새로고침
+          </Button>
           <Button
             type="primary"
             icon={<DownloadOutlined />}
