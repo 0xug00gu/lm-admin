@@ -3,12 +3,12 @@
 
 const isProd = import.meta.env.PROD;
 
-// 프로덕션에서는 상대 경로 사용 (Vercel 프록시)
+// 프로덕션에서는 현재 origin 사용 (Vercel 프록시)
 // 개발 환경에서는 직접 서버 URL 사용
 const getBaseUrl = () => {
-  if (isProd) {
-    // Vercel 프록시를 통해 요청
-    return "";
+  if (isProd && typeof window !== "undefined") {
+    // Vercel 프록시를 통해 요청 - 현재 origin 사용
+    return window.location.origin;
   }
   return import.meta.env.VITE_POCKETBASE_URL || "http://146.56.158.19";
 };
