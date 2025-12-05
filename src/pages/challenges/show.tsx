@@ -46,6 +46,9 @@ const { TextArea } = Input;
 export const ChallengeShow = () => {
   const { queryResult } = useShow({
     resource: "challenges",
+    meta: {
+      expand: "policy_id", // 정책 정보도 함께 가져오기
+    },
   });
 
   const { data, isLoading } = queryResult;
@@ -154,22 +157,11 @@ export const ChallengeShow = () => {
 
   const users = usersData?.data || [];
 
-  // challenge_policies 데이터 가져오기
-  const { data: policyData, refetch: refetchPolicy } = useList({
-    resource: "challenge_policies",
-    filters: [
-      {
-        field: "challenge_id",
-        operator: "eq",
-        value: record?.id,
-      },
-    ],
-    queryOptions: {
-      enabled: !!record?.id,
-    },
-  });
+  // expand된 policy 데이터 사용 (challenges 테이블의 policy_id relation)
+  const policy = record?.expand?.policy_id;
 
-  const policy = policyData?.data?.[0]; // 첫 번째 정책 가져오기
+  // 정책 새로고침 함수 (queryResult를 refetch)
+  const refetchPolicy = queryResult.refetch;
 
   // 팀 필터 상태
   const [selectedTeam, setSelectedTeam] = useState<string>("all");
