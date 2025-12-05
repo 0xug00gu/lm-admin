@@ -1,16 +1,28 @@
 // 환경 변수 설정
-// Vercel에서는 환경 변수를 Dashboard에서 설정해야 합니다.
+// Vercel에서는 프록시를 통해 API 요청을 처리합니다.
+
+const isProd = import.meta.env.PROD;
+
+// 프로덕션에서는 상대 경로 사용 (Vercel 프록시)
+// 개발 환경에서는 직접 서버 URL 사용
+const getBaseUrl = () => {
+  if (isProd) {
+    // Vercel 프록시를 통해 요청
+    return "";
+  }
+  return import.meta.env.VITE_POCKETBASE_URL || "http://146.56.158.19";
+};
 
 export const config = {
   // PocketBase URL
-  pocketbaseUrl: import.meta.env.VITE_POCKETBASE_URL || "http://146.56.158.19",
+  pocketbaseUrl: getBaseUrl(),
 
   // PocketBase Admin 인증 (dataProvider용 - 선택적)
   pocketbaseAdminEmail: import.meta.env.VITE_POCKETBASE_ADMIN_EMAIL || "",
   pocketbaseAdminPassword: import.meta.env.VITE_POCKETBASE_ADMIN_PASSWORD || "",
 
   // API 서버 URL (Discord 관련 API)
-  apiBaseUrl: import.meta.env.VITE_API_BASE_URL || "http://146.56.158.19",
+  apiBaseUrl: getBaseUrl(),
 
   // 환경 확인
   isDev: import.meta.env.DEV,
