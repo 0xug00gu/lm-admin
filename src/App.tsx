@@ -11,7 +11,7 @@ import {
   BookOutlined,
   TrophyOutlined,
   DollarOutlined,
-
+  SettingOutlined,
 } from "@ant-design/icons";
 
 import "@refinedev/antd/dist/reset.css";
@@ -36,6 +36,9 @@ import { ChallengeShow } from "./pages/challenges/show";
 
 // Channels
 import { ChannelShow } from "./pages/channels/show";
+
+// System Channels
+import { SystemChannelList } from "./pages/system-channels/list";
 
 
 
@@ -102,7 +105,14 @@ function App() {
                 name: "channels",
                 show: "/channels/show/:id",
               },
-
+              {
+                name: "system-channels",
+                list: "/system-channels",
+                meta: {
+                  label: "시스템 채널",
+                  icon: <SettingOutlined />,
+                },
+              },
               {
                 name: "revenue",
                 meta: {
@@ -183,6 +193,11 @@ function App() {
                 {/* Channels */}
                 <Route path="/channels">
                   <Route path="show/:id" element={<ChannelShow />} />
+                </Route>
+
+                {/* System Channels */}
+                <Route path="/system-channels">
+                  <Route index element={<SystemChannelList />} />
                 </Route>
 
                 {/* Revenue */}

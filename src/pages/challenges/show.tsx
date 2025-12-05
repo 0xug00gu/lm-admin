@@ -1,6 +1,7 @@
 import dayjs from "dayjs";
 import { Show } from "@refinedev/antd";
 import { useShow, useCreate, useDelete, useList, useUpdate, useNavigation } from "@refinedev/core";
+import { getPocketBaseInstance } from "../../providers/pocketbaseDataProvider";
 import {
   Tabs,
   Descriptions,
@@ -315,83 +316,84 @@ export const ChallengeShow = () => {
     channelForm.setFieldsValue({ parent_id: undefined });
   };
 
-  // 채널 추가 (DB에 저장)
+  // 채널 추가 (PocketBase insert 방식 + 멤버 추가)
   const handleAddChannel = async () => {
     try {
       const values = await channelForm.validateFields();
 
-      // DB에 채널 저장 (challenge_id 연결)
-      createChannel(
-        {
-          resource: "channels",
-          values: {
-            name: values.name,
-            channel_id: values.channel_id || "",
-            guild_id: selectedGuildId,
-            type: values.type || "text",
-            parent_id: values.parent_id || "",
-            topic: values.topic || "",
-            owner_id: values.owner_id || "",
-            is_private: values.is_private || false,
-            is_active: true,
-            demotion_enabled: values.demotion_enabled || false,
-            challenge_id: record?.id, // 현재 챌린지와 연결
-          },
-        },
-        {
-          onSuccess: () => {
-            message.success("채널이 추가되었습니다.");
-            setIsChannelModalOpen(false);
-            channelForm.resetFields();
-            setSelectedGuildId("");
-            setCategories([]);
-            refetchChannels();
-          },
-          onError: (error: any) => {
-            console.error("채널 추가 실패:", error);
-            message.error("채널 추가에 실패했습니다.");
-          },
+      if (!selectedGuildId) {
+        message.error("길드를 선택하세요.");
+        return;
+      }
+
+      const pb = getPocketBaseInstance();
+      if (!pb) {
+        message.error("DB 연결에 실패했습니다.");
+        return;
+      }
+
+      // 1. channels 테이블에 insert → 백엔드 Hook이 Discord 채널 자동 생성
+      const channelRecord = await pb.collection("channels").create({
+        name: values.name,
+        guild_id: selectedGuildId,
+        type: values.type === "text" ? 0 : values.type === "voice" ? 2 : 0,
+        parent_id: values.parent_id || "",
+        topic: values.topic || "",
+        is_private: values.is_private || false,
+        is_active: true,
+        demotion_enabled: values.demotion_enabled || false,
+        challenge_id: record?.id,
+      });
+
+      // 2. 선택된 멤버들 추가 - channel_members 테이블에 insert → 백엔드 Hook이 Discord 채널에 멤버 초대
+      const selectedUserIds = values.users || [];
+      if (selectedUserIds.length > 0) {
+        for (const userId of selectedUserIds) {
+          try {
+            await pb.collection("channel_members").create({
+              channel_id: channelRecord.id,
+              discord_user_id: userId, // discord_users 테이블의 레코드 ID (relation)
+              role: "member",
+            });
+          } catch (memberErr) {
+            console.error("채널 멤버 추가 중 에러:", memberErr);
+          }
         }
-      );
-    } catch (error) {
-      message.error("채널 추가 중 오류가 발생했습니다.");
+      }
+
+      message.success("채널이 추가되었습니다.");
+      setIsChannelModalOpen(false);
+      channelForm.resetFields();
+      setSelectedGuildId("");
+      setCategories([]);
+      refetchChannels();
+    } catch (error: any) {
+      console.error("채널 추가 실패:", error);
+      const errorMessage = error?.data?.message || error?.message || "채널 추가에 실패했습니다.";
+      message.error(errorMessage);
     }
   };
 
-  // 채널 삭제 (Discord + DB)
+  // 채널 삭제 (DB 삭제 → 백엔드 Hook이 Discord 채널 자동 삭제)
   const handleDeleteChannel = (id: string) => {
     // 삭제할 채널 정보 찾기
     const channelToDelete = channels.find((ch: any) => ch.id === id);
 
     Modal.confirm({
-      title: "채널을 삭제하시겠습니까?",
-      content: "Discord 채널과 DB 데이터가 모두 삭제됩니다. 이 작업은 되돌릴 수 없습니다.",
+      title: "⚠️ 채널을 삭제하시겠습니까?",
+      content: (
+        <div>
+          <p><strong>"{channelToDelete?.name}"</strong> 채널을 삭제합니다.</p>
+          <p style={{ color: "#ff4d4f", fontWeight: "bold" }}>
+            Discord 서버에서 해당 채널이 영구적으로 삭제되며, 이 작업은 되돌릴 수 없습니다.
+          </p>
+        </div>
+      ),
       okText: "삭제",
       okType: "danger",
       cancelText: "취소",
       onOk: async () => {
-        // 1. Discord에서 채널 삭제
-        if (channelToDelete?.channel_id) {
-          try {
-            message.loading("Discord 채널 삭제 중...", 0);
-            const response = await fetch(
-              `http://146.56.158.19/api/admin/discord/channels/${channelToDelete.channel_id}`,
-              { method: "DELETE" }
-            );
-            message.destroy();
-
-            const result = await response.json();
-            if (!result.success) {
-              message.warning("Discord 채널 삭제에 실패했습니다. DB에서만 삭제합니다.");
-            }
-          } catch (error) {
-            message.destroy();
-            console.error("Discord 채널 삭제 에러:", error);
-            message.warning("Discord 채널 삭제 중 오류가 발생했습니다. DB에서만 삭제합니다.");
-          }
-        }
-
-        // 2. DB에서 채널 삭제
+        // DB에서 채널 삭제 → 백엔드 Hook이 Discord 채널 자동 삭제
         deleteChannel(
           {
             resource: "channels",
@@ -403,8 +405,8 @@ export const ChallengeShow = () => {
               refetchChannels();
             },
             onError: (error: any) => {
-              console.error("DB 채널 삭제 실패:", error);
-              message.error("DB에서 채널 삭제에 실패했습니다.");
+              console.error("채널 삭제 실패:", error);
+              message.error("채널 삭제에 실패했습니다.");
             },
           }
         );
@@ -575,24 +577,27 @@ export const ChallengeShow = () => {
 
   // 채널 멤버 목록 가져오기
   const fetchChannelMembers = async (channel: any) => {
-    if (!channel?.channel_id) {
-      message.error("채널 ID가 없습니다.");
+    if (!channel?.id) {
+      message.error("채널 정보가 없습니다.");
       return;
     }
 
     setLoadingMembers(true);
     try {
-      // PocketBase에서 channel_members 조회 (expand로 discord_user 정보 포함)
-      const response = await fetch(
-        `http://146.56.158.19/_/api/collections/channel_members/records?filter=(channel_id='${channel.id}')&expand=discord_user_id`
-      );
-      const result = await response.json();
-
-      if (result.items) {
-        setChannelMembers(result.items);
-      } else {
-        setChannelMembers([]);
+      const pb = getPocketBaseInstance();
+      if (!pb) {
+        message.error("DB 연결에 실패했습니다.");
+        setLoadingMembers(false);
+        return;
       }
+
+      // PocketBase에서 channel_members 조회 (expand로 discord_user 정보 포함)
+      const result = await pb.collection("channel_members").getFullList({
+        filter: `channel_id='${channel.id}'`,
+        expand: "discord_user_id",
+      });
+
+      setChannelMembers(result);
     } catch (error) {
       console.error("멤버 목록 가져오기 실패:", error);
       message.error("멤버 목록을 가져오는데 실패했습니다.");
@@ -609,13 +614,19 @@ export const ChallengeShow = () => {
     await fetchChannelMembers(channel);
   };
 
-  // 채널에 멤버 추가
+  // 채널에 멤버 추가 (PocketBase insert 방식)
   const handleAddMember = async () => {
     try {
       const values = await addMemberForm.validateFields();
 
-      if (!selectedChannel?.channel_id) {
+      if (!selectedChannel?.id) {
         message.error("채널 정보가 없습니다.");
+        return;
+      }
+
+      const pb = getPocketBaseInstance();
+      if (!pb) {
+        message.error("DB 연결에 실패했습니다.");
         return;
       }
 
@@ -627,46 +638,28 @@ export const ChallengeShow = () => {
         return;
       }
 
-      const response = await fetch(
-        `http://146.56.158.19/api/admin/discord/channels/${selectedChannel.channel_id}/members`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            discord_user_id: selectedUser.discord_id,
-            role: values.role || "member",
-          }),
-        }
-      );
+      // channel_members 테이블에 insert → 백엔드 Hook이 Discord 권한 자동 추가
+      await pb.collection("channel_members").create({
+        channel_id: selectedChannel.id,
+        discord_user_id: selectedUser.id,
+        role: values.role || "member",
+      });
 
-      const result = await response.json();
-
-      if (result.success) {
-        message.success("멤버가 추가되었습니다.");
-        setIsAddMemberModalOpen(false);
-        addMemberForm.resetFields();
-        // 멤버 목록 새로고침
-        await fetchChannelMembers(selectedChannel);
-      } else {
-        message.error(result.message || "멤버 추가에 실패했습니다.");
-      }
-    } catch (error) {
+      message.success("멤버가 추가되었습니다.");
+      setIsAddMemberModalOpen(false);
+      addMemberForm.resetFields();
+      // 멤버 목록 새로고침
+      await fetchChannelMembers(selectedChannel);
+    } catch (error: any) {
       console.error("멤버 추가 에러:", error);
-      message.error("멤버 추가 중 오류가 발생했습니다.");
+      const errorMessage = error?.data?.message || error?.message || "멤버 추가 중 오류가 발생했습니다.";
+      message.error(errorMessage);
     }
   };
 
-  // 채널에서 멤버 제거
+  // 채널에서 멤버 제거 (PocketBase delete 방식)
   const handleRemoveMember = (member: any) => {
-    const discordId = member.expand?.discord_user_id?.discord_id;
     const userName = member.expand?.discord_user_id?.name || member.expand?.discord_user_id?.username || "알 수 없음";
-
-    if (!discordId) {
-      message.error("Discord ID를 찾을 수 없습니다.");
-      return;
-    }
 
     Modal.confirm({
       title: "멤버를 채널에서 제거하시겠습니까?",
@@ -675,29 +668,23 @@ export const ChallengeShow = () => {
       okType: "danger",
       cancelText: "취소",
       onOk: async () => {
+        const pb = getPocketBaseInstance();
+        if (!pb) {
+          message.error("DB 연결에 실패했습니다.");
+          return;
+        }
+
         try {
-          const response = await fetch(
-            `http://146.56.158.19/api/admin/discord/channels/${selectedChannel?.channel_id}/members/${discordId}`,
-            {
-              method: "DELETE",
-              headers: {
-                "Content-Type": "application/json",
-              },
-            }
-          );
+          // channel_members 테이블에서 삭제 → 백엔드 Hook이 Discord 권한 자동 제거
+          await pb.collection("channel_members").delete(member.id);
 
-          const result = await response.json();
-
-          if (result.success) {
-            message.success("멤버가 제거되었습니다.");
-            // 멤버 목록 새로고침
-            await fetchChannelMembers(selectedChannel);
-          } else {
-            message.error(result.message || "멤버 제거에 실패했습니다.");
-          }
-        } catch (error) {
+          message.success("멤버가 제거되었습니다.");
+          // 멤버 목록 새로고침
+          await fetchChannelMembers(selectedChannel);
+        } catch (error: any) {
           console.error("멤버 제거 에러:", error);
-          message.error("멤버 제거 중 오류가 발생했습니다.");
+          const errorMessage = error?.data?.message || error?.message || "멤버 제거 중 오류가 발생했습니다.";
+          message.error(errorMessage);
         }
       },
     });
@@ -1033,13 +1020,6 @@ export const ChallengeShow = () => {
                       />
                     </Form.Item>
                     <Form.Item
-                      name="channel_id"
-                      label="Discord 채널 ID"
-                      rules={[{ required: true, message: "채널 ID를 입력하세요" }]}
-                    >
-                      <Input placeholder="Discord 채널 ID를 입력하세요" />
-                    </Form.Item>
-                    <Form.Item
                       name="name"
                       label="채널명"
                       rules={[{ required: true, message: "채널명을 입력하세요" }]}
@@ -1060,12 +1040,6 @@ export const ChallengeShow = () => {
                       />
                     </Form.Item>
                     <Form.Item
-                      name="topic"
-                      label="채널 설명"
-                    >
-                      <Input.TextArea placeholder="채널 설명 (선택사항)" rows={2} />
-                    </Form.Item>
-                    <Form.Item
                       name="is_private"
                       label="비공개 채널"
                       valuePropName="checked"
@@ -1080,6 +1054,27 @@ export const ChallengeShow = () => {
                       initialValue={false}
                     >
                       <Switch />
+                    </Form.Item>
+                    <Divider />
+                    <Form.Item
+                      name="users"
+                      label="참여 사용자"
+                      help="채널에 추가할 사용자를 선택하세요 (선택사항)"
+                    >
+                      <Select
+                        mode="multiple"
+                        placeholder="사용자를 선택하세요"
+                        showSearch
+                        optionFilterProp="children"
+                        filterOption={(input, option) =>
+                          (option?.label ?? "").toLowerCase().includes(input.toLowerCase())
+                        }
+                        options={discordUsers.map((user: any) => ({
+                          label: `${user.name || "이름없음"} (${user.username || "ID없음"})`,
+                          value: user.id,
+                        }))}
+                        style={{ width: "100%" }}
+                      />
                     </Form.Item>
                   </Form>
                 </Modal>

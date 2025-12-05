@@ -256,54 +256,32 @@ export const ChallengeCreate = () => {
         policy_id: policyRecord.id,
       });
 
-      // 3. 채널 생성 (있으면) - Discord API가 DB 저장까지 처리함
+      // 3. 채널 생성 (있으면) - PocketBase insert 방식 (백엔드 Hook이 Discord 채널 자동 생성)
       if (channelsToCreate.length > 0) {
         for (const channel of channelsToCreate) {
           try {
-            const discordResponse = await fetch(
-              `http://146.56.158.19/api/admin/discord/guilds/${channel.guild_id}/channels`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  name: channel.name,
-                  type: channel.type === "text" ? 0 : channel.type === "voice" ? 2 : 0,
-                  parent_id: channel.parent_id || undefined,
-                  is_private: channel.is_private || false,
-                  challenge_id: challengeRecord.id,
-                  demotion_enabled: channel.demotion_enabled || false,
-                }),
-              }
-            );
+            // channels 테이블에 insert → 백엔드 Hook이 Discord 채널 자동 생성
+            const channelRecord = await pb.collection("channels").create({
+              name: channel.name,
+              guild_id: channel.guild_id,
+              type: channel.type === "text" ? 0 : channel.type === "voice" ? 2 : 0,
+              parent_id: channel.parent_id || "",
+              is_private: channel.is_private || false,
+              challenge_id: challengeRecord.id,
+              demotion_enabled: channel.demotion_enabled || false,
+            });
 
-            const discordResult = await discordResponse.json();
-            if (!discordResult.success) {
-              console.error("Discord 채널 생성 실패:", channel.name, discordResult);
-            } else {
-              // 4. 채널에 사용자 추가 (채널 생성 성공 시)
-              const createdChannelId = discordResult.data?.channel_id;
-              if (createdChannelId && channel.users && channel.users.length > 0) {
-                for (const user of channel.users) {
-                  if (!user.discord_id) continue;
-                  try {
-                    const memberResponse = await fetch(
-                      `http://146.56.158.19/api/admin/discord/channels/${createdChannelId}/members`,
-                      {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          discord_user_id: user.discord_id,
-                          role: "member",
-                        }),
-                      }
-                    );
-                    const memberResult = await memberResponse.json();
-                    if (!memberResult.success) {
-                      console.error("채널 멤버 추가 실패:", user.name, memberResult);
-                    }
-                  } catch (memberErr) {
-                    console.error("채널 멤버 추가 중 에러:", memberErr);
-                  }
+            // 4. 채널에 사용자 추가 - channel_members 테이블에 insert
+            if (channel.users && channel.users.length > 0) {
+              for (const user of channel.users) {
+                try {
+                  await pb.collection("channel_members").create({
+                    channel_id: channelRecord.id,
+                    discord_user_id: user.id, // discord_users 테이블의 레코드 ID (relation)
+                    role: "member",
+                  });
+                } catch (memberErr) {
+                  console.error("채널 멤버 추가 중 에러:", memberErr);
                 }
               }
             }
