@@ -65,21 +65,23 @@ export const SystemChannelList = () => {
     }
   };
 
-  // 시스템 채널 목록 가져오기
+  // 시스템 채널 목록 가져오기 (PocketBase)
   const fetchSystemChannels = async (guildId: string) => {
     if (!guildId) return;
 
     setLoading(true);
     try {
-      const response = await fetch(
-        `http://146.56.158.19/api/admin/discord/guilds/${guildId}/system-channels`
-      );
-      const result = await response.json();
-      if (result.success) {
-        setSystemChannels(result.data || []);
-      } else {
-        setSystemChannels([]);
+      const pb = getPocketBaseInstance();
+      if (!pb) {
+        message.error("DB 연결에 실패했습니다.");
+        setLoading(false);
+        return;
       }
+
+      const result = await pb.collection("system_channels").getFullList({
+        filter: `guild_id='${guildId}'`,
+      });
+      setSystemChannels(result || []);
     } catch (error) {
       console.error("시스템 채널 목록 가져오기 실패:", error);
       message.error("시스템 채널 목록을 가져오는데 실패했습니다.");
@@ -118,11 +120,36 @@ export const SystemChannelList = () => {
     }
   };
 
+  // 이미 생성된 시스템 채널 타입 가져오기
+  const getExistingTypes = () => {
+    return systemChannels.map((ch: any) => ch.type);
+  };
+
+  // 생성 가능한 시스템 채널 타입 (휴식방, 리셋방은 1개만)
+  const getAvailableTypes = () => {
+    const existingTypes = getExistingTypes();
+    return SYSTEM_CHANNEL_TYPES.filter((type) => {
+      // 공지방은 여러 개 가능
+      if (type.value === "announcement") return true;
+      // 휴식방, 리셋방은 이미 있으면 제외
+      return !existingTypes.includes(type.value);
+    });
+  };
+
   // 시스템 채널 생성 - PocketBase insert 방식 (백엔드 Hook이 Discord 채널 자동 생성)
   const handleCreate = async () => {
     try {
       const values = await createForm.validateFields();
       setCreateLoading(true);
+
+      // 휴식방/리셋방 중복 체크
+      const existingTypes = getExistingTypes();
+      if ((values.type === "revival_room" || values.type === "rest_room") && existingTypes.includes(values.type)) {
+        const typeName = values.type === "revival_room" ? "부활방" : "휴식방";
+        message.error(`${typeName}은(는) 길드당 1개만 생성할 수 있습니다.`);
+        setCreateLoading(false);
+        return;
+      }
 
       const pb = getPocketBaseInstance();
       if (!pb) {
@@ -158,45 +185,38 @@ export const SystemChannelList = () => {
   const handleEditOpen = (channel: any) => {
     setEditingChannel(channel);
     editForm.setFieldsValue({
-      channel_id: channel.channel_id,
       name: channel.name,
       is_active: channel.is_active,
     });
     setIsEditModalOpen(true);
   };
 
-  // 시스템 채널 수정
+  // 시스템 채널 수정 (PocketBase)
   const handleEdit = async () => {
     try {
       const values = await editForm.validateFields();
 
-      const response = await fetch(
-        `http://146.56.158.19/api/admin/discord/guilds/${selectedGuildId}/system-channels/${editingChannel.type}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            channel_id: values.channel_id,
-            name: values.name,
-            is_active: values.is_active,
-          }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (result.success) {
-        message.success("시스템 채널이 수정되었습니다.");
-        setIsEditModalOpen(false);
-        setEditingChannel(null);
-        editForm.resetFields();
-        fetchSystemChannels(selectedGuildId);
-      } else {
-        message.error(result.message || "시스템 채널 수정에 실패했습니다.");
+      const pb = getPocketBaseInstance();
+      if (!pb) {
+        message.error("DB 연결에 실패했습니다.");
+        return;
       }
-    } catch (error) {
+
+      // system_channels 테이블 업데이트 → 백엔드 Hook이 Discord 채널 업데이트
+      await pb.collection("system_channels").update(editingChannel.id, {
+        name: values.name,
+        is_active: values.is_active,
+      });
+
+      message.success("시스템 채널이 수정되었습니다.");
+      setIsEditModalOpen(false);
+      setEditingChannel(null);
+      editForm.resetFields();
+      fetchSystemChannels(selectedGuildId);
+    } catch (error: any) {
       console.error("시스템 채널 수정 에러:", error);
-      message.error("시스템 채널 수정 중 오류가 발생했습니다.");
+      const errorMessage = error?.data?.message || error?.message || "시스템 채널 수정 중 오류가 발생했습니다.";
+      message.error(errorMessage);
     }
   };
 
@@ -344,9 +364,14 @@ export const SystemChannelList = () => {
           >
             <Select
               placeholder="채널 타입을 선택하세요"
-              options={SYSTEM_CHANNEL_TYPES}
+              options={getAvailableTypes()}
             />
           </Form.Item>
+          {getAvailableTypes().length === 0 && (
+            <div style={{ color: "#ff4d4f", marginBottom: 16 }}>
+              모든 시스템 채널이 이미 생성되어 있습니다.
+            </div>
+          )}
           <Form.Item
             name="parent_id"
             label="Discord 카테고리"
@@ -396,13 +421,6 @@ export const SystemChannelList = () => {
             <Tag color={getTypeColor(editingChannel?.type)}>
               {getTypeLabel(editingChannel?.type || "")}
             </Tag>
-          </Form.Item>
-          <Form.Item
-            name="channel_id"
-            label="Discord 채널 ID"
-            rules={[{ required: true, message: "Discord 채널 ID를 입력하세요" }]}
-          >
-            <Input placeholder="Discord 채널 ID" />
           </Form.Item>
           <Form.Item
             name="name"

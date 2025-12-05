@@ -56,9 +56,6 @@ export const ChallengeShow = () => {
   const [isChannelModalOpen, setIsChannelModalOpen] = useState(false);
   const [isEditChannelModalOpen, setIsEditChannelModalOpen] = useState(false);
   const [editingChannel, setEditingChannel] = useState<any>(null);
-  const [guilds, setGuilds] = useState<any[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [selectedGuildId, setSelectedGuildId] = useState<string>("");
   const [channelForm] = Form.useForm();
   const [editChannelForm] = Form.useForm();
 
@@ -283,37 +280,23 @@ export const ChallengeShow = () => {
     return tableData;
   };
 
-  // 길드 목록 가져오기
-  const fetchGuilds = async () => {
-    try {
-      const response = await fetch("http://146.56.158.19/api/admin/discord/guilds");
-      const result = await response.json();
-      if (result.success) {
-        setGuilds(result.data);
-      }
-    } catch (error) {
-      message.error("길드 목록을 가져오는데 실패했습니다.");
+  // 챌린지의 채널 정보 가져오기 (guild_id는 챌린지에서, parent_id는 채널에서)
+  const getChallengeChannelInfo = () => {
+    // 챌린지에 guild_id가 있으면 사용
+    if (record?.guild_id) {
+      return {
+        guild_id: record.guild_id,
+        parent_id: channels?.[0]?.parent_id || "",
+      };
     }
-  };
-
-  // 카테고리 목록 가져오기
-  const fetchCategories = async (guildId: string) => {
-    try {
-      const response = await fetch(`http://146.56.158.19/api/admin/discord/guilds/${guildId}/categories`);
-      const result = await response.json();
-      if (result.success) {
-        setCategories(result.data);
-      }
-    } catch (error) {
-      message.error("카테고리 목록을 가져오는데 실패했습니다.");
+    // 없으면 기존 채널에서 가져오기 (하위호환)
+    if (channels && channels.length > 0) {
+      return {
+        guild_id: channels[0].guild_id,
+        parent_id: channels[0].parent_id || "",
+      };
     }
-  };
-
-  // 길드 선택 시
-  const handleGuildChange = (guildId: string) => {
-    setSelectedGuildId(guildId);
-    fetchCategories(guildId);
-    channelForm.setFieldsValue({ parent_id: undefined });
+    return null;
   };
 
   // 채널 추가 (PocketBase insert 방식 + 멤버 추가)
@@ -321,8 +304,9 @@ export const ChallengeShow = () => {
     try {
       const values = await channelForm.validateFields();
 
-      if (!selectedGuildId) {
-        message.error("길드를 선택하세요.");
+      const channelInfo = getChallengeChannelInfo();
+      if (!channelInfo) {
+        message.error("챌린지에 연결된 채널이 없어 길드를 확인할 수 없습니다.");
         return;
       }
 
@@ -333,12 +317,12 @@ export const ChallengeShow = () => {
       }
 
       // 1. channels 테이블에 insert → 백엔드 Hook이 Discord 채널 자동 생성
+      // guild_id와 parent_id는 기존 채널의 것을 따라감
       const channelRecord = await pb.collection("channels").create({
         name: values.name,
-        guild_id: selectedGuildId,
+        guild_id: channelInfo.guild_id,
         type: values.type === "text" ? 0 : values.type === "voice" ? 2 : 0,
-        parent_id: values.parent_id || "",
-        topic: values.topic || "",
+        parent_id: channelInfo.parent_id,
         is_private: values.is_private || false,
         is_active: true,
         demotion_enabled: values.demotion_enabled || false,
@@ -364,8 +348,6 @@ export const ChallengeShow = () => {
       message.success("채널이 추가되었습니다.");
       setIsChannelModalOpen(false);
       channelForm.resetFields();
-      setSelectedGuildId("");
-      setCategories([]);
       refetchChannels();
     } catch (error: any) {
       console.error("채널 추가 실패:", error);
@@ -547,30 +529,72 @@ export const ChallengeShow = () => {
     );
   };
 
-  // 챌린지 삭제
+  // 챌린지 삭제 (관련 채널, 채널 멤버도 함께 삭제)
   const handleDeleteChallenge = () => {
     Modal.confirm({
-      title: "챌린지를 삭제하시겠습니까?",
-      content: "해당 작업은 되돌릴 수 없습니다. 모든 관련 데이터가 삭제됩니다.",
+      title: "⚠️ 챌린지를 삭제하시겠습니까?",
+      content: (
+        <div>
+          <p>해당 작업은 되돌릴 수 없습니다.</p>
+          <p style={{ color: "#ff4d4f", fontWeight: "bold" }}>
+            챌린지와 연결된 모든 채널, 채널 멤버가 삭제되며, Discord 서버의 채널도 영구적으로 삭제됩니다.
+          </p>
+        </div>
+      ),
       okText: "삭제",
       okType: "danger",
       cancelText: "취소",
-      onOk: () => {
-        deleteChallenge(
-          {
-            resource: "challenges",
-            id: record?.id,
-          },
-          {
-            onSuccess: () => {
-              message.success("챌린지가 삭제되었습니다.");
-              list("challenges");
-            },
-            onError: () => {
-              message.error("챌린지 삭제에 실패했습니다.");
-            },
+      onOk: async () => {
+        const pb = getPocketBaseInstance();
+        if (!pb) {
+          message.error("DB 연결에 실패했습니다.");
+          return;
+        }
+
+        try {
+          // 1. 챌린지에 연결된 모든 채널의 멤버 삭제
+          for (const channel of channels) {
+            try {
+              const members = await pb.collection("channel_members").getFullList({
+                filter: `channel_id='${channel.id}'`,
+              });
+              for (const member of members) {
+                await pb.collection("channel_members").delete(member.id);
+              }
+            } catch (err) {
+              console.error("채널 멤버 삭제 에러:", err);
+            }
           }
-        );
+
+          // 2. 챌린지에 연결된 모든 채널 삭제 → 백엔드 Hook이 Discord 채널 자동 삭제
+          for (const channel of channels) {
+            try {
+              await pb.collection("channels").delete(channel.id);
+            } catch (err) {
+              console.error("채널 삭제 에러:", err);
+            }
+          }
+
+          // 3. 챌린지 삭제
+          deleteChallenge(
+            {
+              resource: "challenges",
+              id: record?.id,
+            },
+            {
+              onSuccess: () => {
+                message.success("챌린지가 삭제되었습니다.");
+                list("challenges");
+              },
+              onError: () => {
+                message.error("챌린지 삭제에 실패했습니다.");
+              },
+            }
+          );
+        } catch (error) {
+          console.error("챌린지 삭제 중 에러:", error);
+          message.error("챌린지 삭제 중 오류가 발생했습니다.");
+        }
       },
     });
   };
@@ -979,46 +1003,11 @@ export const ChallengeShow = () => {
                   onCancel={() => {
                     setIsChannelModalOpen(false);
                     channelForm.resetFields();
-                    setSelectedGuildId("");
-                    setCategories([]);
                   }}
                   okText="추가"
                   cancelText="취소"
-                  afterOpenChange={(open) => {
-                    if (open) {
-                      fetchGuilds();
-                    }
-                  }}
                 >
                   <Form form={channelForm} layout="vertical">
-                    <Form.Item
-                      label="길드 (서버)"
-                      rules={[{ required: true, message: "길드를 선택하세요" }]}
-                    >
-                      <Select
-                        placeholder="길드를 선택하세요"
-                        onChange={handleGuildChange}
-                        value={selectedGuildId}
-                        options={guilds.map((guild) => ({
-                          label: `${guild.name} (멤버: ${guild.member_count}명)`,
-                          value: guild.id,
-                        }))}
-                      />
-                    </Form.Item>
-                    <Form.Item
-                      name="parent_id"
-                      label="Discord 카테고리"
-                    >
-                      <Select
-                        placeholder="카테고리를 선택하세요 (선택사항)"
-                        disabled={!selectedGuildId}
-                        allowClear
-                        options={categories.map((category) => ({
-                          label: category.name,
-                          value: category.id,
-                        }))}
-                      />
-                    </Form.Item>
                     <Form.Item
                       name="name"
                       label="채널명"

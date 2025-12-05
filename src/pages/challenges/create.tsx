@@ -60,6 +60,7 @@ export const ChallengeCreate = () => {
   const [guilds, setGuilds] = useState<any[]>([]);
   const [discordCategories, setDiscordCategories] = useState<any[]>([]);
   const [selectedGuildId, setSelectedGuildId] = useState<string>("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string>("");
 
   // 채널 관리
   const [channelsToCreate, setChannelsToCreate] = useState<any[]>([]);
@@ -156,7 +157,7 @@ export const ChallengeCreate = () => {
         name: values.name,
         guild_id: selectedGuildId,
         type: values.type || "text",
-        parent_id: values.parent_id || "",
+        parent_id: selectedCategoryId || "",
         is_private: values.is_private || false,
         demotion_enabled: values.demotion_enabled || false,
         users: selectedUsers, // 추가할 사용자 목록
@@ -164,8 +165,6 @@ export const ChallengeCreate = () => {
       setChannelsToCreate([...channelsToCreate, newChannel]);
       setIsChannelModalOpen(false);
       channelForm.resetFields();
-      setSelectedGuildId("");
-      setDiscordCategories([]);
       message.success(`채널 '${newChannel.name}'이(가) 목록에 추가되었습니다.`);
     } catch (error: any) {
       console.error("채널 추가 에러:", error);
@@ -232,10 +231,15 @@ export const ChallengeCreate = () => {
       const challengeValues: any = {
         name: values.name,
         start_date: values.period[0].toISOString(),
-        end_date: values.period[1].toISOString(),
+        finish_date: values.period[1].toISOString(),
         is_active: values.is_active !== undefined ? values.is_active : true,
         demotion_enabled: values.demotion_enabled !== undefined ? values.demotion_enabled : false,
       };
+
+      // guild_id 저장
+      if (selectedGuildId) {
+        challengeValues.guild_id = selectedGuildId;
+      }
 
       if (typeof values.cardinal_number === 'number' || (values.cardinal_number !== undefined && values.cardinal_number !== null && values.cardinal_number !== "")) {
         challengeValues.cardinal_number = Number(values.cardinal_number);
@@ -541,14 +545,40 @@ export const ChallengeCreate = () => {
             style={{ marginBottom: 16 }}
           />
 
+          <Form.Item label="Discord 길드 (서버)" style={{ marginBottom: 16 }}>
+            <Select
+              placeholder="길드를 선택하세요"
+              onChange={handleGuildChange}
+              value={selectedGuildId}
+              style={{ width: 300 }}
+              options={guilds.map((guild) => ({
+                label: `${guild.name} (멤버: ${guild.member_count}명)`,
+                value: guild.id,
+              }))}
+            />
+          </Form.Item>
+
+          <Form.Item label="Discord 카테고리" style={{ marginBottom: 16 }}>
+            <Select
+              placeholder="카테고리를 선택하세요 (선택사항)"
+              disabled={!selectedGuildId}
+              allowClear
+              style={{ width: 300 }}
+              value={selectedCategoryId || undefined}
+              onChange={(value) => setSelectedCategoryId(value || "")}
+              options={discordCategories.map((category) => ({
+                label: category.name,
+                value: category.id,
+              }))}
+            />
+          </Form.Item>
+
           <Button
             type="dashed"
             icon={<PlusOutlined />}
-            onClick={() => {
-              fetchGuilds();
-              setIsChannelModalOpen(true);
-            }}
+            onClick={() => setIsChannelModalOpen(true)}
             style={{ marginBottom: 16 }}
+            disabled={!selectedGuildId}
           >
             채널 추가
           </Button>
@@ -614,38 +644,11 @@ export const ChallengeCreate = () => {
           onCancel={() => {
             setIsChannelModalOpen(false);
             channelForm.resetFields();
-            setSelectedGuildId("");
-            setDiscordCategories([]);
           }}
           okText="추가"
           cancelText="취소"
         >
           <Form form={channelForm} layout="vertical">
-            <Form.Item label="Discord 길드 (서버)">
-              <Select
-                placeholder="길드를 선택하세요"
-                onChange={handleGuildChange}
-                value={selectedGuildId}
-                options={guilds.map((guild) => ({
-                  label: `${guild.name} (멤버: ${guild.member_count}명)`,
-                  value: guild.id,
-                }))}
-              />
-            </Form.Item>
-            <Form.Item
-              name="parent_id"
-              label="Discord 카테고리"
-            >
-              <Select
-                placeholder="카테고리를 선택하세요 (선택사항)"
-                disabled={!selectedGuildId}
-                allowClear
-                options={discordCategories.map((category) => ({
-                  label: category.name,
-                  value: category.id,
-                }))}
-              />
-            </Form.Item>
             <Form.Item
               name="name"
               label="채널명"

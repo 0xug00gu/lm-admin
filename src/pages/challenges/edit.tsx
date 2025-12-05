@@ -1,19 +1,45 @@
 import { Edit, useForm } from "@refinedev/antd";
 import { Form, Input, DatePicker, InputNumber, Checkbox, Radio, Card, Divider, Alert, Switch } from "antd";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import dayjs from "dayjs";
 
 const { RangePicker } = DatePicker;
 const { TextArea } = Input;
 
 export const ChallengeEdit = () => {
-  const { formProps, saveButtonProps, queryResult } = useForm();
+  const { formProps, saveButtonProps, queryResult, form } = useForm();
+  const record = queryResult?.data?.data;
   const [challengeType, setChallengeType] = useState<string>(
-    queryResult?.data?.data?.type || "lifemastery"
+    record?.type || "lifemastery"
   );
+
+  // 기존 데이터 로드 시 period 필드 설정
+  useEffect(() => {
+    if (record?.start_date && record?.finish_date) {
+      form.setFieldsValue({
+        period: [dayjs(record.start_date), dayjs(record.finish_date)],
+      });
+    }
+  }, [record, form]);
+
+  // 폼 제출 시 period를 start_date, finish_date로 변환
+  const handleFinish = async (values: any) => {
+    const { period, ...rest } = values;
+
+    const submitValues: any = { ...rest };
+
+    if (period && period[0] && period[1]) {
+      submitValues.start_date = period[0].toISOString();
+      submitValues.finish_date = period[1].toISOString();
+    }
+
+    // formProps.onFinish 호출
+    return formProps.onFinish?.(submitValues);
+  };
 
   return (
     <Edit saveButtonProps={saveButtonProps}>
-      <Form {...formProps} layout="vertical">
+      <Form {...formProps} layout="vertical" onFinish={handleFinish}>
         {/* 챌린지 타입 선택 */}
         <Card title="챌린지 타입" style={{ marginBottom: 24 }}>
           <Form.Item
