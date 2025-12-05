@@ -3,6 +3,7 @@ import { Table, Button, Space, Tag, Modal, Form, Select, Input, Switch, message,
 import { PlusOutlined, EditOutlined, DeleteOutlined } from "@ant-design/icons";
 import { useState, useEffect } from "react";
 import { getPocketBaseInstance } from "../../providers/pocketbaseDataProvider";
+import { api } from "../../config/env";
 
 const SYSTEM_CHANNEL_TYPES = [
   { label: "부활방", value: "revival_room" },
@@ -50,7 +51,7 @@ export const SystemChannelList = () => {
   // 길드 목록 가져오기
   const fetchGuilds = async () => {
     try {
-      const response = await fetch("http://146.56.158.19/api/admin/discord/guilds");
+      const response = await fetch(api.discord.guilds());
       const result = await response.json();
       if (result.success) {
         setGuilds(result.data);
@@ -108,9 +109,7 @@ export const SystemChannelList = () => {
   // 디스코드 카테고리 목록 가져오기
   const fetchCategories = async (guildId: string) => {
     try {
-      const response = await fetch(
-        `http://146.56.158.19/api/admin/discord/guilds/${guildId}/categories`
-      );
+      const response = await fetch(api.discord.guildCategories(guildId));
       const result = await response.json();
       if (result.success) {
         setCategories(result.data || []);

@@ -3,6 +3,7 @@ import { useShow, useList } from "@refinedev/core";
 import { Descriptions, Tag, Tabs, Table, Button, Space, Modal, Form, Select, message } from "antd";
 import { PlusOutlined, DeleteOutlined, UserOutlined, InfoCircleOutlined } from "@ant-design/icons";
 import { useState } from "react";
+import { api } from "../../config/env";
 
 export const ChannelShow = () => {
   const { queryResult } = useShow({
@@ -62,7 +63,7 @@ export const ChannelShow = () => {
       }
 
       const response = await fetch(
-        `http://146.56.158.19/api/admin/discord/channels/${record?.channel_id}/members`,
+        api.discord.channelMembers(record?.channel_id),
         {
           method: "POST",
           headers: {
@@ -111,7 +112,7 @@ export const ChannelShow = () => {
       cancelText: "취소",
       onOk: async () => {
         try {
-          const url = `http://146.56.158.19/api/admin/discord/channels/${record?.channel_id}/members/${discordId}`;
+          const url = api.discord.channelMember(record?.channel_id, discordId);
 
           const response = await fetch(url, {
             method: "DELETE",

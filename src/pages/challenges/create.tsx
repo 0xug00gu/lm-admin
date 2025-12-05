@@ -4,6 +4,7 @@ import { Form, Input, DatePicker, InputNumber, Card, Divider, Alert, Switch, mes
 import { PlusOutlined, DeleteOutlined, UserOutlined } from "@ant-design/icons";
 import { useState, useEffect, useRef } from "react";
 import { getPocketBaseInstance } from "../../providers/pocketbaseDataProvider";
+import { api } from "../../config/env";
 
 const { RangePicker } = DatePicker;
 const { TextArea } = Input;
@@ -103,7 +104,7 @@ export const ChallengeCreate = () => {
   // 길드 목록 가져오기
   const fetchGuilds = async () => {
     try {
-      const response = await fetch("http://146.56.158.19/api/admin/discord/guilds");
+      const response = await fetch(api.discord.guilds());
       const result = await response.json();
       if (result.success) {
         setGuilds(result.data);
@@ -116,7 +117,7 @@ export const ChallengeCreate = () => {
   // 디스코드 카테고리 목록 가져오기
   const fetchDiscordCategories = async (guildId: string) => {
     try {
-      const response = await fetch(`http://146.56.158.19/api/admin/discord/guilds/${guildId}/categories`);
+      const response = await fetch(api.discord.guildCategories(guildId));
       const result = await response.json();
       if (result.success) {
         setDiscordCategories(result.data);

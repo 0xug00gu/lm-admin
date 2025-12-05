@@ -1,8 +1,10 @@
 import { Refine } from "@refinedev/core";
 import { RefineThemes, ThemedLayoutV2, notificationProvider } from "@refinedev/antd";
 import { pocketbaseDataProvider } from "./providers/pocketbaseDataProvider";
+import { authProvider } from "./providers/authProvider";
+import { config } from "./config/env";
 import routerProvider from "@refinedev/react-router-v6";
-import { BrowserRouter, Routes, Route, Outlet } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Outlet, Navigate } from "react-router-dom";
 import { ConfigProvider, App as AntdApp } from "antd";
 import koKR from "antd/locale/ko_KR";
 import {
@@ -15,6 +17,9 @@ import {
 } from "@ant-design/icons";
 
 import "@refinedev/antd/dist/reset.css";
+
+// Auth
+import { LoginPage, RegisterPage, PendingApprovalPage } from "./pages/auth";
 
 // Dashboard
 import { DashboardPage } from "./pages/dashboard";
@@ -48,18 +53,44 @@ import { SalesLog } from "./pages/revenue/sales-log";
 import { ManualSaleAdd } from "./pages/revenue/manual-add";
 import { PGManagement } from "./pages/revenue/pg-management";
 
+// 인증된 사용자만 접근 가능한 레이아웃 (verified 체크 포함)
+const AuthenticatedLayout = () => {
+  const authDataStr = localStorage.getItem("pb_auth");
+
+  if (!authDataStr) {
+    return <Navigate to="/login" replace />;
+  }
+
+  try {
+    const authData = JSON.parse(authDataStr);
+
+    // verified가 false면 승인 대기 페이지로
+    if (!authData.model?.verified) {
+      return <Navigate to="/pending-approval" replace />;
+    }
+
+    return (
+      <ThemedLayoutV2>
+        <Outlet />
+      </ThemedLayoutV2>
+    );
+  } catch {
+    return <Navigate to="/login" replace />;
+  }
+};
+
 function App() {
   return (
     <BrowserRouter>
       <ConfigProvider theme={RefineThemes.Blue} locale={koKR}>
         <AntdApp>
           <Refine
-            Title="라이프마스터리스쿨"
             dataProvider={pocketbaseDataProvider(
-              import.meta.env.VITE_POCKETBASE_URL || "http://127.0.0.1:8090",
-              import.meta.env.VITE_POCKETBASE_ADMIN_EMAIL,
-              import.meta.env.VITE_POCKETBASE_ADMIN_PASSWORD
+              config.pocketbaseUrl,
+              config.pocketbaseAdminEmail,
+              config.pocketbaseAdminPassword
             )}
+            authProvider={authProvider}
             notificationProvider={notificationProvider}
             routerProvider={routerProvider}
             resources={[
@@ -159,13 +190,13 @@ function App() {
             }}
           >
             <Routes>
-              <Route
-                element={
-                  <ThemedLayoutV2>
-                    <Outlet />
-                  </ThemedLayoutV2>
-                }
-              >
+              {/* 인증 페이지 (비로그인 상태에서 접근 가능) */}
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/register" element={<RegisterPage />} />
+              <Route path="/pending-approval" element={<PendingApprovalPage />} />
+
+              {/* 인증된 사용자만 접근 가능한 페이지 */}
+              <Route element={<AuthenticatedLayout />}>
                 {/* Dashboard */}
                 <Route index element={<DashboardPage />} />
 
